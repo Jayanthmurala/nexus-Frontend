@@ -48,14 +48,33 @@ export default function StudentCollaborationHub() {
   const dispatch = useAppDispatch();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const requestedMyAppsRef = useRef(false);
+  const myApplications = useAppSelector(selectMyApplications);
+  // Per-project guards to avoid refetch loops when API returns empty arrays
+  const requestedAcceptedAppsByProjectRef = useRef<Set<string>>(new Set());
+  const requestedCommentsByProjectRef = useRef<Set<string>>(new Set());
+  const requestedTasksByProjectRef = useRef<Set<string>>(new Set());
+  const requestedAttachmentsByProjectRef = useRef<Set<string>>(new Set());
 
-  // Load the student's applications; we'll derive collaborations from ACCEPTED apps
+  // Reset guard on user change
+  useEffect(() => {
+    requestedMyAppsRef.current = false;
+    // Also reset per-project request guards when user changes
+    requestedAcceptedAppsByProjectRef.current.clear();
+    requestedCommentsByProjectRef.current.clear();
+    requestedTasksByProjectRef.current.clear();
+    requestedAttachmentsByProjectRef.current.clear();
+  }, [user?.id, user?.role]);
+
+  // Load the student's applications; we'll derive collaborations from ACCEPTED apps (guarded)
   useEffect(() => {
     if (!user || user.role !== "student") return;
+    if (requestedMyAppsRef.current) return;
+    if ((myApplications?.length ?? 0) > 0) return;
+    requestedMyAppsRef.current = true;
     dispatch(fetchMyApplications());
-  }, [dispatch, user?.id, user?.role]);
+  }, [dispatch, user?.id, user?.role, myApplications?.length]);
 
-  const myApplications = useAppSelector(selectMyApplications);
   // Derive collaboration projects from accepted applications (dedup by projectId)
   const projects = useMemo(() => {
     const acc = (myApplications || []).filter((a) => a.status === "ACCEPTED" && a.project);
@@ -93,10 +112,12 @@ export default function StudentCollaborationHub() {
   // Ensure accepted applications for the selected project are loaded (to show collaborator count)
   useEffect(() => {
     if (!currentProjectId) return;
-    if (!projectApplications?.length && !projectApplicationsLoading) {
-      dispatch(fetchProjectApplications({ projectId: currentProjectId, status: "ACCEPTED" }));
-    }
-  }, [currentProjectId, projectApplications?.length, projectApplicationsLoading, dispatch]);
+    if (requestedAcceptedAppsByProjectRef.current.has(currentProjectId)) return;
+    if (projectApplicationsLoading) return;
+    // Mark as requested immediately to prevent loops even if API returns []
+    requestedAcceptedAppsByProjectRef.current.add(currentProjectId);
+    dispatch(fetchProjectApplications({ projectId: currentProjectId, status: "ACCEPTED" }));
+  }, [currentProjectId, projectApplicationsLoading, dispatch]);
 
   // Redux-backed collaboration data
   const projectComments = useAppSelector((state) =>
@@ -121,16 +142,19 @@ export default function StudentCollaborationHub() {
   // Fetch data when project changes
   useEffect(() => {
     if (!currentProjectId) return;
-    if (!projectComments?.length && !commentsLoading) {
+    if (!commentsLoading && !requestedCommentsByProjectRef.current.has(currentProjectId)) {
+      requestedCommentsByProjectRef.current.add(currentProjectId);
       dispatch(fetchComments({ projectId: currentProjectId }));
     }
-    if (!tasks?.length && !tasksLoading) {
+    if (!tasksLoading && !requestedTasksByProjectRef.current.has(currentProjectId)) {
+      requestedTasksByProjectRef.current.add(currentProjectId);
       dispatch(fetchProjectTasks({ projectId: currentProjectId }));
     }
-    if (!attachments?.length && !attachmentsLoading) {
+    if (!attachmentsLoading && !requestedAttachmentsByProjectRef.current.has(currentProjectId)) {
+      requestedAttachmentsByProjectRef.current.add(currentProjectId);
       dispatch(fetchProjectAttachments({ projectId: currentProjectId }));
     }
-  }, [currentProjectId, dispatch, projectComments?.length, commentsLoading, tasks?.length, tasksLoading, attachments?.length, attachmentsLoading]);
+  }, [currentProjectId, dispatch, commentsLoading, tasksLoading, attachmentsLoading]);
 
   const [activeTab, setActiveTab] = useState<"chat" | "tasks" | "files">("chat");
   const [newMessage, setNewMessage] = useState("");

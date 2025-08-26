@@ -23,12 +23,20 @@ const initialState: CommentsState = {
 // Thunks
 export const fetchComments = createAsyncThunk<
   { projectId: string; taskId?: string; comments: Comment[] },
-  { projectId: string; taskId?: string }
+  { projectId: string; taskId?: string },
+  { state: RootState }
 >(
   'comments/fetch',
   async ({ projectId, taskId }) => {
     const { comments } = await projectsApi.getProjectComments(projectId, taskId);
     return { projectId, taskId, comments };
+  },
+  {
+    condition: ({ projectId, taskId }, { getState }) => {
+      const state = (getState() as RootState).comments;
+      // Prevent duplicate in-flight requests per project or task
+      return taskId ? !state.loadingByTaskId[taskId] : !state.loadingByProjectId[projectId];
+    },
   }
 );
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import type { User } from '@/contexts/AuthContext';
 import { usePathname } from 'next/navigation';
@@ -214,6 +214,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [drives, setDrives] = useState<PlacementDrive[]>([]);
   const [studentShowcaseProjects, setStudentShowcaseProjects] = useState<StudentShowcaseProject[]>([]);
 
+  // Guard: ensure we dispatch fetchMyApplications only once per user session
+  const requestedMyAppsRef = useRef(false);
+  // Guards for events fetching to avoid duplicate dispatches
+  const requestedEventsRef = useRef(false);
+  const requestedMyEventsRef = useRef(false);
+  // Track last user ID to reset guards immediately within the same effect cycle
+  const lastUserIdRef = useRef<string | null>(null);
+
   // Helper function to convert Redux Project to DataContext Project
   const convertReduxToDataProject = (reduxProject: ReduxProject): Project => ({
     id: reduxProject.id,
@@ -362,21 +370,40 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
   }, [dispatch, user?.id, user?.role, pathname]);
 
-  // Fetch events on mount (and when dispatch changes which is stable)
+  // Fetch events on mount and when user changes (guarded). Resets guards synchronously on user change
   useEffect(() => {
-    try { console.debug('[DataContext] Dispatch fetchEvents'); } catch {}
-    dispatch(fetchEventsThunk({ upcomingOnly: true }));
-    // Optionally fetch my events for personalization
-    if (user) {
-      try { dispatch(fetchMyEventsThunk()); } catch {}
+    const uid = user?.id ?? null;
+    const userChanged = lastUserIdRef.current !== uid;
+    if (userChanged) {
+      lastUserIdRef.current = uid;
+      // Reset guards so we refetch for the new user (to refresh isRegistered flags)
+      requestedEventsRef.current = false;
+      requestedMyEventsRef.current = false;
+      requestedMyAppsRef.current = false;
+    }
+
+    if (!requestedEventsRef.current) {
+      requestedEventsRef.current = true;
+      try { console.debug('[DataContext] Dispatch fetchEvents (guarded)'); } catch {}
+      dispatch(fetchEventsThunk({ upcomingOnly: true }));
+    }
+    if (user && !requestedMyEventsRef.current) {
+      requestedMyEventsRef.current = true;
+      try { console.debug('[DataContext] Dispatch fetchMyEvents (guarded)'); } catch {}
+      dispatch(fetchMyEventsThunk());
     }
   }, [dispatch, user?.id]);
 
-  // For students: fetch my applications via Redux
+  // (Removed separate reset effect; handled inside the guarded events effect above)
+
+  // For students: fetch my applications via Redux (guarded)
   useEffect(() => {
     if (!user || user.role !== 'student') return;
+    if (requestedMyAppsRef.current) return;
+    if ((myApplicationsRedux?.length ?? 0) > 0) return; // already loaded
+    requestedMyAppsRef.current = true;
     try {
-      console.debug('[DataContext] Dispatch fetchMyApplications');
+      console.debug('[DataContext] Dispatch fetchMyApplications (guarded)');
       dispatch(fetchMyApplications());
     } catch (e) {
       try { console.error('[DataContext] Failed to dispatch fetchMyApplications', e); } catch {}

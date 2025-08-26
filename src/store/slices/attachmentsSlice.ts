@@ -17,12 +17,20 @@ const initialState: AttachmentsState = {
 // Thunks
 export const fetchProjectAttachments = createAsyncThunk<
   { projectId: string; attachments: ProjectAttachment[] },
-  { projectId: string }
+  { projectId: string },
+  { state: RootState }
 >(
   'attachments/fetchProjectAttachments',
   async ({ projectId }) => {
     const { attachments } = await projectsApi.getProjectAttachments(projectId);
     return { projectId, attachments };
+  },
+  {
+    condition: ({ projectId }, { getState }) => {
+      const { loadingByProjectId } = (getState() as RootState).attachments;
+      // Prevent duplicate in-flight requests for the same project
+      return !loadingByProjectId[projectId];
+    },
   }
 );
 

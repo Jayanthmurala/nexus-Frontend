@@ -122,11 +122,13 @@ export default function Sidebar() {
 
   // Ensure student applications are loaded once per session for badge count
   React.useEffect(() => {
-    if (user?.role === 'student' && !requestedMyAppsRef.current) {
-      requestedMyAppsRef.current = true;
-      try { dispatch(fetchMyApplications()); } catch {}
-    }
-  }, [user?.role, user?.id, dispatch]);
+    if (user?.role !== 'student') return;
+    if (requestedMyAppsRef.current) return;
+    if (myAppsLoading) return;
+    if ((myApps?.length ?? 0) > 0) return;
+    requestedMyAppsRef.current = true;
+    try { dispatch(fetchMyApplications()); } catch {}
+  }, [user?.role, user?.id, dispatch, myAppsLoading, myApps?.length]);
 
   const isActive = (href: string) => {
     if (!pathname) return false;

@@ -17,12 +17,20 @@ const initialState: TasksState = {
 // Thunks
 export const fetchProjectTasks = createAsyncThunk<
   { projectId: string; tasks: ProjectTask[] },
-  { projectId: string }
+  { projectId: string },
+  { state: RootState }
 >(
   'tasks/fetchProjectTasks',
   async ({ projectId }) => {
     const { tasks } = await projectsApi.getProjectTasks(projectId);
     return { projectId, tasks };
+  },
+  {
+    condition: ({ projectId }, { getState }) => {
+      const { loadingByProjectId } = (getState() as RootState).tasks;
+      // Prevent duplicate in-flight requests for the same project
+      return !loadingByProjectId[projectId];
+    },
   }
 );
 

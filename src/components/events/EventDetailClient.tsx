@@ -7,6 +7,7 @@ import { Calendar, MapPin, Building2, Clock, Link2, Download, Pencil, Trash2 } f
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
+import * as XLSX from 'xlsx';
 import {
   fetchEventById,
   selectCurrentEvent,
@@ -161,15 +162,190 @@ export default function EventDetailClient({ id }: { id: string }) {
     if (!ev) return;
     try {
       const { blob, filename } = await dispatch(exportEventRegistrations(ev.id)).unwrap();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename || 'registrations.csv';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-      toast.success('Export started');
+
+      // Try to filter CSV columns on the client to only: Student Name, Registration Number, Department, Year
+      try {
+        // Support both CSV and XLSX exports from server; be resilient to octet-stream
+        let wb: XLSX.WorkBook | null = null;
+        try {
+          const ab = await blob.arrayBuffer();
+          wb = XLSX.read(ab, { type: 'array' });
+        } catch {
+          wb = null;
+        }
+        if (!wb) {
+          const csvText = await blob.text();
+          wb = XLSX.read(csvText, { type: 'string' });
+        }
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1, defval: '' }) as string[][];
+        if (!rows.length) throw new Error('Empty CSV');
+
+        const norm = (s: any) => String(s || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ');
+
+        // Alias sets for header detection
+        const nameAliases = [
+          'student name',
+          'name',
+          'full name',
+          'student full name',
+          'name of student',
+          'student',
+          'studentname',
+          'fullname',
+        ];
+        const memberAliases = [
+          'member id',
+          'membership id',
+          'membershipid',
+          'memberid',
+          'membership number',
+          'membership no',
+          'member number',
+          'member no',
+          'college membership id',
+          'college member id',
+          'college id',
+          'reg id',
+          'regid',
+          'registration id',
+          'registration number',
+          'registrationnumber',
+          'reg number',
+          'registration no',
+          'reg no',
+          'reg no.',
+          'regd no',
+          'regd number',
+          'register no',
+          'register number',
+          'student id',
+          'roll number',
+          'roll no',
+          'admission number',
+          'admission no',
+          'enrollment number',
+          'enrolment number',
+          'enrollment no',
+          'enrolment no',
+        ];
+        const deptAliases = [
+          'department',
+          'dept',
+          'department name',
+          'dept name',
+          'department code',
+          'dept code',
+          'departmentname',
+          'deptname',
+          'branch',
+          'stream',
+          'programme',
+          'program',
+        ];
+        const yearAliases = [
+          'year',
+          'year of study',
+          'year-of-study',
+          'academic year',
+          'batch year',
+          'year level',
+          'class year',
+          'study year',
+          'yearofstudy',
+          'academicyear',
+          'batchyear',
+          'yearlevel',
+          'classyear',
+          'studyyear',
+          'yos',
+        ];
+
+        // Scan first few rows to identify the actual header row
+        let headerRowIdx = -1;
+        let iName = -1, iMembership = -1, iDept = -1, iYear = -1;
+        const maxScan = Math.min(rows.length, 100);
+        for (let r = 0; r < maxScan; r++) {
+          const headerRaw = (rows[r] || []).map((x) => String(x ?? ''));
+          const normHeader = headerRaw.map(norm);
+          const findIdx = (aliases: string[]) => {
+            const aliasNorms = aliases.map(norm);
+            for (let i = 0; i < normHeader.length; i++) {
+              const h = normHeader[i];
+              for (const a of aliasNorms) {
+                if (h === a || h.includes(a) || a.includes(h)) return i;
+              }
+            }
+            return -1;
+          };
+
+          const n = findIdx(nameAliases);
+          const m = findIdx(memberAliases);
+          const d = findIdx(deptAliases);
+          const y = findIdx(yearAliases);
+          if (n !== -1 && m !== -1 && d !== -1 && y !== -1) {
+            headerRowIdx = r;
+            iName = n; iMembership = m; iDept = d; iYear = y;
+            try { console.warn('[EventDetail] Detected header row', rows[r]); } catch {}
+            break;
+          }
+        }
+
+        if (headerRowIdx === -1) {
+          try { console.warn('[EventDetail] Could not detect header row. Attempting fallback using first row as header. Preview:', rows.slice(0, 2)); } catch {}
+          const headerRaw = (rows[0] || []).map((x) => String(x ?? ''));
+          const normHeader = headerRaw.map(norm);
+          const findIdx = (aliases: string[]) => {
+            const aliasNorms = aliases.map(norm);
+            for (let i = 0; i < normHeader.length; i++) {
+              const h = normHeader[i];
+              for (const a of aliasNorms) {
+                if (h === a || h.includes(a) || a.includes(h)) return i;
+              }
+            }
+            return -1;
+          };
+          const n = findIdx(nameAliases);
+          const m = findIdx(memberAliases);
+          const d = findIdx(deptAliases);
+          const y = findIdx(yearAliases);
+          headerRowIdx = 0;
+          iName = n; iMembership = m; iDept = d; iYear = y;
+        }
+
+        const dataRows = rows.slice(headerRowIdx + 1);
+
+        const missing: string[] = [];
+        if (iName === -1) missing.push('Student Name');
+        if (iMembership === -1) missing.push('Member ID');
+        if (iDept === -1) missing.push('Department');
+        if (iYear === -1) missing.push('Year');
+        if (missing.length) throw new Error(`Missing columns: ${missing.join(', ')}`);
+
+        const outHeader = ['Student Name', 'Member ID', 'Department', 'Year'];
+        const outRows = dataRows.map((r) => [r[iName] ?? '', r[iMembership] ?? '', r[iDept] ?? '', r[iYear] ?? '']);
+        const outWs = XLSX.utils.aoa_to_sheet([outHeader, ...outRows]);
+        const outWb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(outWb, outWs, 'Registrations');
+        const outArr = XLSX.write(outWb, { type: 'array', bookType: 'csv' });
+        const outBlob = new Blob([outArr], { type: 'text/csv;charset=utf-8;' });
+        const outName = (filename?.replace(/\.csv$/i, '') || 'registrations') + '_filtered.csv';
+
+        const url = window.URL.createObjectURL(outBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = outName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+        toast.success('Exported filtered CSV');
+        return;
+      } catch (filterError) {
+        try { console.warn('[EventDetail] CSV filtering failed; required columns missing', filterError); } catch {}
+        toast.error('Export failed: required columns not found. Expected: Student Name, Member ID, Department, Year');
+        return;
+      }
     } catch (e: any) {
       toast.error(e?.message || 'Failed to export registrations');
     }

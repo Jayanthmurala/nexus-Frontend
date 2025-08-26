@@ -23,20 +23,39 @@ const initialState: ApplicationsState = {
 // Thunks
 export const fetchProjectApplications = createAsyncThunk<
   { projectId: string; applications: Application[] },
-  { projectId: string; status?: string }
+  { projectId: string; status?: string },
+  { state: RootState }
 >(
   'applications/fetchProjectApplications',
   async ({ projectId, status }) => {
     const { applications } = await projectsApi.getProjectApplications(projectId, status);
     return { projectId, applications };
+  },
+  {
+    condition: ({ projectId }, { getState }) => {
+      const { loadingByProjectId } = (getState() as RootState).applications;
+      // Prevent duplicate in-flight requests for the same project
+      return !loadingByProjectId[projectId];
+    },
   }
 );
 
-export const fetchMyApplications = createAsyncThunk<Application[], string | undefined>(
+export const fetchMyApplications = createAsyncThunk<
+  Application[],
+  string | undefined,
+  { state: RootState }
+>(
   'applications/fetchMyApplications',
   async (status) => {
     const { applications } = await projectsApi.getMyApplications(status);
     return applications ?? [];
+  },
+  {
+    condition: (_status, { getState }) => {
+      const { loadingMine } = (getState() as RootState).applications;
+      // Prevent duplicate in-flight requests
+      return !loadingMine;
+    },
   }
 );
 

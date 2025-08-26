@@ -17,6 +17,9 @@ interface EventsState {
   current: Event | null;
   eligibility: { canCreate: boolean; missingBadges: string[] } | null;
   loading: boolean;
+  // Per-thunk in-flight flags to guard duplicate requests
+  isFetchingList: boolean;
+  isFetchingMine: boolean;
   error?: string;
   pagination: {
     page: number;
@@ -30,23 +33,43 @@ const initialState: EventsState = {
   current: null,
   eligibility: null,
   loading: false,
+  isFetchingList: false,
+  isFetchingMine: false,
   pagination: { page: 1, total: 0 },
 };
 
 // List events with filters/pagination
-export const fetchEvents = createAsyncThunk<EventsListResponse, EventsListParams | undefined>(
+export const fetchEvents = createAsyncThunk<
+  EventsListResponse,
+  EventsListParams | undefined,
+  { state: RootState }
+>(
   'events/fetchEvents',
   async (params) => {
     return await eventsApiNamed.listEvents(params);
+  },
+  {
+    condition: (_arg, { getState }) => {
+      const { isFetchingList } = (getState() as RootState).events;
+      // Prevent duplicate in-flight list requests
+      return !isFetchingList;
+    },
   }
 );
 
 // Get my events (authored and/or registered)
-export const fetchMyEvents = createAsyncThunk<Event[]>(
+export const fetchMyEvents = createAsyncThunk<Event[], void, { state: RootState }>(
   'events/fetchMyEvents',
   async () => {
     const res = await eventsApiNamed.getMyEvents();
     return res.events;
+  },
+  {
+    condition: (_arg, { getState }) => {
+      const { isFetchingMine } = (getState() as RootState).events;
+      // Prevent duplicate in-flight "mine" requests
+      return !isFetchingMine;
+    },
   }
 );
 
@@ -142,23 +165,31 @@ const eventsSlice = createSlice({
       // list
       .addCase(fetchEvents.pending, (state) => {
         state.loading = true; state.error = undefined;
+        state.isFetchingList = true;
       })
       .addCase(fetchEvents.fulfilled, (state, action: PayloadAction<EventsListResponse>) => {
         state.loading = false;
+        state.isFetchingList = false;
         state.items = action.payload.events;
         state.pagination = { page: action.payload.page, total: action.payload.total };
       })
       .addCase(fetchEvents.rejected, (state, action) => {
         state.loading = false; state.error = action.error.message || 'Failed to load events';
+        state.isFetchingList = false;
       })
 
       // mine
-      .addCase(fetchMyEvents.pending, (state) => { state.loading = true; state.error = undefined; })
+      .addCase(fetchMyEvents.pending, (state) => {
+        state.loading = true; state.error = undefined;
+        state.isFetchingMine = true;
+      })
       .addCase(fetchMyEvents.fulfilled, (state, action: PayloadAction<Event[]>) => {
         state.loading = false; state.mine = action.payload;
+        state.isFetchingMine = false;
       })
       .addCase(fetchMyEvents.rejected, (state, action) => {
         state.loading = false; state.error = action.error.message || 'Failed to load my events';
+        state.isFetchingMine = false;
       })
 
       // get by id
