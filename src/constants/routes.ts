@@ -12,24 +12,24 @@ export const ROUTES = {
   LEARNING: '/learning',
 
   FACULTY: {
-    profile: '/profile',
+    base: '/faculty',
+    profile: '/faculty/profile',
     projects: '/projects',
     applications: '/applications',
     collaboration: '/collaboration',
-    events: '/events',
+    events: '/faculty/events',
     badges: '/badges',
     students: '/students',
     network: '/network',
     messages: '/messages',
   },
 
-  STUDENT: {
-    base: '/student',
+  student: {
+    dashboard: '/student',
     profile: '/student/profile',
     marketplace: '/student/marketplace',
-    myApplications: '/student/my-applications',
-    collaboration: '/student/collaboration',
-    calendar: '/student/calendar',
+    applications: '/student/my-applications',
+    events: '/student/events',
     network: '/student/network',
     messages: '/student/messages',
   },

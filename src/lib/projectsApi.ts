@@ -1,3 +1,4 @@
+import { ReactNode } from 'react';
 import httpProjects from './httpProjects';
 
 // Types matching backend Prisma models and Zod schemas
@@ -13,14 +14,17 @@ export interface Project {
   authorId: string;
   authorName: string;
   authorAvatar: string | null;
+  authorDepartment?: string; // Faculty's actual department
   title: string;
   description: string;
   projectDuration: string | null;
   skills: string[];
-  departments: string[];
+  departments: string[]; // Departments that can apply to this project
   visibleToAllDepts: boolean;
   projectType: ProjectType;
   maxStudents: number;
+  acceptedStudentsCount?: number; // Count of students actually accepted/enrolled
+  totalApplicantsCount?: number; // Total number of students who applied
   deadline: string | null;
   tags: string[];
   requirements: string[];
@@ -68,6 +72,7 @@ export interface ProjectTask {
 }
 
 export interface ProjectAttachment {
+  uploaderName: ReactNode;
   id: string;
   projectId: string;
   uploaderId: string;

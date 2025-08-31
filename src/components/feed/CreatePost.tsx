@@ -1,18 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
-import {
-  X,
-  FileText,
-  Link as LinkIcon,
-  Award,
-  Calendar,
-  Users,
-  Hash,
-  Image as ImageIcon,
-  Type
-} from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { ImageIcon, FileText, Link as LinkIcon, Hash, Users, X, MessageSquare, Trophy, Calendar, Handshake, FileImage, AlertCircle, Type, Award } from 'lucide-react';
 import { useAuth, UserRole } from '@/contexts/AuthContext';
+import { uploadMedia } from '@/lib/uploadMedia';
+import { networkApi } from '@/lib/networkApi';
+import { compressImage, validateImageFile } from '@/lib/imageUtils';
 
 interface CreatePostProps {
   onClose: () => void;
@@ -22,23 +15,45 @@ interface CreatePostProps {
     authorRole: 'student' | 'faculty' | 'admin';
     authorDepartment: string;
     content: string;
+    visibility: 'PUBLIC' | 'COLLEGE';
     type: 'text' | 'project_update' | 'achievement' | 'event' | 'collaboration';
     attachments?: Array<{
       type: 'image' | 'document' | 'link';
       url: string;
       title?: string;
+      mediaId?: string;
+      mimeType?: string;
     }>;
     tags?: string[];
+    links?: Array<{ url: string; title?: string }>;
     timestamp: Date;
+    mediaIds?: string[];
   }) => void;
 }
 
 export default function CreatePost({ onClose, onSubmit }: CreatePostProps) {
   const { user } = useAuth();
   const [content, setContent] = useState('');
+  const [visibility, setVisibility] = useState<'PUBLIC' | 'COLLEGE'>('COLLEGE');
   const [postType, setPostType] = useState<'text' | 'project_update' | 'achievement' | 'event' | 'collaboration'>('text');
+  const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([]);
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | undefined>(undefined);
+
+  type UploadedAttachment = {
+    id: string; // backend media id
+    url: string;
+    mimeType: string;
+    width?: number | null;
+    height?: number | null;
+    name?: string;
+  };
+  const [attachments, setAttachments] = useState<UploadedAttachment[]>([]);
+
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const docInputRef = useRef<HTMLInputElement>(null);
 
   const postTypes = [
     { value: 'text', label: 'General Update', icon: Type, color: 'bg-blue-100 text-blue-700' },
@@ -83,9 +98,19 @@ export default function CreatePost({ onClose, onSubmit }: CreatePostProps) {
       authorRole: mapUserRoleToPostRole(user?.role || 'student'),
       authorDepartment: user?.department || '',
       content: content.trim(),
+      visibility,
       type: postType,
       tags: tags.length > 0 ? tags : undefined,
-      timestamp: new Date()
+      timestamp: new Date(),
+      mediaIds: attachments.map((a) => a.id),
+      links: [], // Will be implemented later
+      attachments: attachments.map((a) => ({
+        type: a.mimeType?.startsWith('image/') ? 'image' : 'document',
+        url: a.url,
+        title: a.name,
+        mediaId: a.id,
+        mimeType: a.mimeType,
+      })),
     });
   };
 
@@ -150,6 +175,88 @@ export default function CreatePost({ onClose, onSubmit }: CreatePostProps) {
             />
           </div>
 
+          {/* Attachments Preview */}
+          {(attachments.length > 0 || imagePreviewUrls.length > 0) && (
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium text-gray-700">Media Attachments</h4>
+              
+              {/* Images grid */}
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {/* Uploaded images */}
+                {attachments
+                  .filter((a) => a.mimeType?.startsWith('image/'))
+                  .map((a) => (
+                    <div key={a.id} className="relative group">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img 
+                        src={a.url} 
+                        alt={a.name || 'uploaded image'} 
+                        className="w-full h-32 object-cover rounded-lg border border-gray-200 shadow-sm" 
+                        onError={(e) => {
+                          console.error('Image failed to load:', a.url);
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors rounded-lg" />
+                      <button
+                        type="button"
+                        className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => setAttachments((prev) => prev.filter((x) => x.id !== a.id))}
+                        aria-label="Remove image"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                      <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                        {a.name}
+                      </div>
+                    </div>
+                  ))}
+                
+                {/* Preview images (uploading) */}
+                {imagePreviewUrls.map((previewUrl, idx) => (
+                  <div key={`preview-${idx}`} className="relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img 
+                      src={previewUrl} 
+                      alt="uploading..." 
+                      className="w-full h-32 object-cover rounded-lg border border-blue-200 shadow-sm opacity-70" 
+                    />
+                    <div className="absolute inset-0 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                      <div className="bg-white/90 px-2 py-1 rounded text-xs text-blue-600 font-medium">
+                        Uploading...
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* Documents list */}
+              <div className="space-y-2">
+                {attachments
+                  .filter((a) => !a.mimeType?.startsWith('image/'))
+                  .map((a) => (
+                    <div key={a.id} className="flex items-center justify-between border rounded-lg p-2 text-sm">
+                      <div className="truncate">
+                        <span className="text-gray-800">{a.name || 'Attachment'}</span>
+                        <span className="text-gray-500 ml-2">({a.mimeType})</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <a href={a.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
+                          View
+                        </a>
+                        <button
+                          type="button"
+                          className="text-gray-500 hover:text-gray-700"
+                          onClick={() => setAttachments((prev) => prev.filter((x) => x.id !== a.id))}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+
           {/* Tags Input */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Tags (optional)</label>
@@ -179,15 +286,169 @@ export default function CreatePost({ onClose, onSubmit }: CreatePostProps) {
             </div>
           </div>
 
-          {/* Additional Options (non-functional placeholders) */}
+          {/* Visibility Settings */}
           <div className="border-t border-gray-200 pt-4">
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Who can see this post?</label>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setVisibility('COLLEGE')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors ${
+                    visibility === 'COLLEGE'
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                  }`}
+                >
+                  <Users className="w-4 h-4" />
+                  College Only
+                </button>
+                <button
+                  onClick={() => setVisibility('PUBLIC')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors ${
+                    visibility === 'PUBLIC'
+                      ? 'border-green-500 bg-green-50 text-green-700'
+                      : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                  }`}
+                >
+                  <Users className="w-4 h-4" />
+                  Public
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                {visibility === 'COLLEGE' 
+                  ? 'Only people from your college can see this post'
+                  : 'Anyone on the platform can see this post'
+                }
+              </p>
+            </div>
+            
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-600">Add to your post</span>
               <div className="flex space-x-2">
-                <button className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors" aria-label="Add image">
+                <input ref={imageInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden onChange={async (e) => {
+                  const files = e.target.files; 
+                  if (!files || files.length === 0) return; 
+                  
+                  // Create preview URLs immediately for better UX
+                  const newPreviewUrls: string[] = [];
+                  const filesToUpload = Array.from(files).slice(0, Math.max(0, 10 - attachments.length));
+                  
+                  for (const file of filesToUpload) {
+                    // Validate file
+                    const validation = validateImageFile(file);
+                    if (!validation.valid) {
+                      setUploadError(validation.error || 'Invalid file');
+                      continue;
+                    }
+                    
+                    // Create preview URL
+                    const previewUrl = URL.createObjectURL(file);
+                    newPreviewUrls.push(previewUrl);
+                  }
+                  
+                  setImagePreviewUrls(prev => [...prev, ...newPreviewUrls]);
+                  e.currentTarget.value = '';
+                  setUploadError(undefined); 
+                  setUploading(true);
+                  
+                  try {
+                    for (let i = 0; i < filesToUpload.length; i++) {
+                      const file = filesToUpload[i];
+                      const previewUrl = newPreviewUrls[i];
+                      
+                      try {
+                        // Compress image before upload to reduce timeout issues
+                        let fileToUpload = file;
+                        if (file.type.startsWith('image/') && file.size > 1024 * 1024) { // Compress if > 1MB
+                          try {
+                            fileToUpload = await compressImage(file, 1920, 1080, 0.85);
+                            console.log(`Compressed ${file.name}: ${file.size} -> ${fileToUpload.size} bytes`);
+                          } catch (compressionErr) {
+                            console.warn('Image compression failed, uploading original:', compressionErr);
+                            // Continue with original file if compression fails
+                          }
+                        }
+                        
+                        const up = await uploadMedia(fileToUpload, { folder: 'project_images' });
+                        const created = await networkApi.createMedia({
+                          storageKey: up.public_id,
+                          url: up.url,
+                          mimeType: up.mime || file.type || 'image/jpeg',
+                          sizeBytes: up.bytes,
+                          width: up.width,
+                          height: up.height,
+                        });
+                        
+                        setAttachments((prev) => [
+                          ...prev,
+                          { 
+                            id: created.id, 
+                            url: created.url, 
+                            mimeType: created.mimeType, 
+                            width: created.width ?? null, 
+                            height: created.height ?? null, 
+                            name: up.original_filename || file.name 
+                          },
+                        ]);
+                        
+                        // Remove preview URL after successful upload
+                        URL.revokeObjectURL(previewUrl);
+                        setImagePreviewUrls(prev => prev.filter(url => url !== previewUrl));
+                      } catch (fileErr) {
+                        console.error(`Failed to upload ${file.name}:`, fileErr);
+                        URL.revokeObjectURL(previewUrl);
+                        setImagePreviewUrls(prev => prev.filter(url => url !== previewUrl));
+                        throw fileErr;
+                      }
+                    }
+                  } catch (err) {
+                    const msg = err instanceof Error ? err.message : String(err);
+                    setUploadError(`Upload failed: ${msg}`);
+                  } finally { 
+                    setUploading(false); 
+                  }
+                }} />
+                <input ref={docInputRef} type="file" accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple hidden onChange={async (e) => {
+                  const files = e.target.files; if (!files || files.length === 0) return; e.currentTarget.value = '';
+                  setUploadError(undefined); setUploading(true);
+                  try {
+                    const toUpload = Array.from(files).slice(0, Math.max(0, 10 - attachments.length));
+                    for (const file of toUpload) {
+                      const up = await uploadMedia(file, { folder: 'project_files' });
+                      const created = await networkApi.createMedia({
+                        storageKey: up.public_id,
+                        url: up.url,
+                        mimeType: up.mime || file.type || 'application/octet-stream',
+                        sizeBytes: up.bytes,
+                        width: up.width,
+                        height: up.height,
+                      });
+                      setAttachments((prev) => [
+                        ...prev,
+                        { id: created.id, url: created.url, mimeType: created.mimeType, width: created.width ?? null, height: created.height ?? null, name: up.original_filename },
+                      ]);
+                    }
+                  } catch (err) {
+                    const msg = err instanceof Error ? err.message : String(err);
+                    setUploadError(msg);
+                  } finally { setUploading(false); }
+                }} />
+                <button
+                  type="button"
+                  className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors disabled:opacity-50"
+                  aria-label="Add image"
+                  onClick={() => imageInputRef.current?.click()}
+                  disabled={uploading || attachments.length >= 10}
+                >
                   <ImageIcon className="w-5 h-5" />
                 </button>
-                <button className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" aria-label="Add document">
+                <button
+                  type="button"
+                  className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
+                  aria-label="Add document"
+                  onClick={() => docInputRef.current?.click()}
+                  disabled={uploading || attachments.length >= 10}
+                >
                   <FileText className="w-5 h-5" />
                 </button>
                 <button className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors" aria-label="Add link">
@@ -195,6 +456,18 @@ export default function CreatePost({ onClose, onSubmit }: CreatePostProps) {
                 </button>
               </div>
             </div>
+            {uploadError && (
+              <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3 mt-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{uploadError}</span>
+              </div>
+            )}
+            {uploading && (
+              <div className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 border border-blue-200 rounded-lg p-3 mt-2">
+                <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                <span>Uploading images to Cloudinary...</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -203,7 +476,7 @@ export default function CreatePost({ onClose, onSubmit }: CreatePostProps) {
           <button onClick={onClose} className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors">Cancel</button>
           <button
             onClick={handleSubmit}
-            disabled={!content.trim()}
+            disabled={!content.trim() || uploading}
             className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors"
           >
             Post

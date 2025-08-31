@@ -4,7 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { setSidebarOpen } from '@/store/slices/uiSlice';
+import { setSidebarOpen, toggleSidebarCollapse } from '@/store/slices/uiSlice';
 import {
   LayoutDashboard,
   Home,
@@ -16,12 +16,16 @@ import {
   BookOpen,
   X,
   MessageSquare,
+  MessageCircle,
   UserPlus,
   FileText,
   BarChart3,
   Building,
   User,
+  LogOut,
+  Menu,
   ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import type { UserRole } from '@/contexts/AuthContext';
@@ -53,12 +57,13 @@ const roleItems: Partial<Record<UserRole, NavItem[]>> = {
     { href: ROUTES.FACULTY.messages, label: 'Messages', icon: <MessageSquare className="w-4 h-4" /> },
   ],
   student: [
-    { href: ROUTES.STUDENT.profile, label: 'Profile', icon: <User className="w-4 h-4" /> },
-    { href: ROUTES.STUDENT.marketplace, label: 'Marketplace', icon: <BookOpen className="w-4 h-4" /> },
-    { href: ROUTES.STUDENT.myApplications, label: 'My Applications', icon: <FileText className="w-4 h-4" /> },
-    { href: ROUTES.STUDENT.calendar, label: 'Calendar', icon: <Calendar className="w-4 h-4" /> },
-    { href: ROUTES.STUDENT.network, label: 'Network', icon: <Users className="w-4 h-4" /> },
-    { href: ROUTES.STUDENT.messages, label: 'Messages', icon: <MessageSquare className="w-4 h-4" /> },
+    { href: ROUTES.student.dashboard, label: 'Student Dashboard', icon: <Home className="w-4 h-4" /> },
+    { href: ROUTES.student.profile, label: 'Profile', icon: <User className="w-4 h-4" /> },
+    { href: ROUTES.student.marketplace, label: 'Marketplace', icon: <BookOpen className="w-4 h-4" /> },
+    { href: ROUTES.student.applications, label: 'My Applications', icon: <MessageSquare className="w-4 h-4" /> },
+    { href: ROUTES.student.events, label: 'Events', icon: <Calendar className="w-4 h-4" /> },
+    { href: ROUTES.student.network, label: 'Network', icon: <Users className="w-4 h-4" /> },
+    { href: ROUTES.student.messages, label: 'Messages', icon: <MessageCircle className="w-4 h-4" /> },
   ],
   dept_admin: [
     { href: ROUTES.DEPT_ADMIN.base, label: 'Dept Admin', icon: <Users className="w-4 h-4" /> },
@@ -87,28 +92,15 @@ const roleItems: Partial<Record<UserRole, NavItem[]>> = {
 };
 
 export default function Sidebar() {
-  const { user } = useAuth();
-  const open = useAppSelector((s) => s.ui.sidebarOpen);
   const dispatch = useAppDispatch();
+  const open = useAppSelector((state) => state.ui.sidebarOpen);
+  const collapsed = useAppSelector((state) => state.ui.sidebarCollapsed);
+  const { user, logout } = useAuth();
   const pathname = usePathname();
   // Student collaboration count (unique projects with ACCEPTED status)
   const myApps = useAppSelector(selectMyApplications);
   const myAppsLoading = useAppSelector(selectMyApplicationsLoading);
   const requestedMyAppsRef = React.useRef(false);
-
-  // Collapsible on large screens; persist in localStorage
-  const [collapsed, setCollapsed] = React.useState(false);
-  React.useEffect(() => {
-    try {
-      const saved = localStorage.getItem('nexus_sidebar_collapsed');
-      if (saved) setCollapsed(saved === '1');
-    } catch {}
-  }, []);
-  React.useEffect(() => {
-    try {
-      localStorage.setItem('nexus_sidebar_collapsed', collapsed ? '1' : '0');
-    } catch {}
-  }, [collapsed]);
 
   // Close mobile sidebar whenever route changes
   React.useEffect(() => {
@@ -149,13 +141,13 @@ export default function Sidebar() {
     );
     const collabCount = acceptedProjectIds.size;
     const collabItem: NavItem = {
-      href: ROUTES.STUDENT.collaboration,
+      href: '/student/collaboration',
       label: 'Collaboration',
       icon: <Users className="w-4 h-4" />,
       badge: myAppsLoading ? undefined : collabCount,
     };
     // Insert after "My Applications" if present; else append
-    const idx = roleSpecific.findIndex((i) => i.href === ROUTES.STUDENT.myApplications);
+    const idx = roleSpecific.findIndex((i) => i.href === ROUTES.student.applications);
     if (idx >= 0) roleSpecific.splice(idx + 1, 0, collabItem);
     else roleSpecific.push(collabItem);
   }
@@ -165,56 +157,70 @@ export default function Sidebar() {
     ...roleSpecific,
   ];
 
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
+
   return (
     <>
-      {/* Overlay for mobile */}
+      {/* Mobile overlay */}
       <div
-        className={`fixed inset-0 bg-black/30 z-40 lg:hidden ${open ? 'block' : 'hidden'}`}
+        className={`fixed inset-0 bg-black/50 z-40 lg:hidden ${open ? 'block' : 'hidden'}`}
         onClick={() => dispatch(setSidebarOpen(false))}
       />
 
-      <aside
-        className={`${collapsed ? 'w-20' : 'w-72'} h-full z-50 lg:z-auto transform transition-transform duration-200 ease-out
-        fixed lg:static top-0 left-0 overflow-y-auto
-        ${open ? 'translate-x-0' : '-translate-x-full'}
-        lg:translate-x-0 bg-white/60 backdrop-blur supports-[backdrop-filter]:bg-white/50 border-r border-white/20 shadow-lg`}
+      {/* Mobile menu button */}
+      <button
+        className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-white shadow-lg border"
+        onClick={() => dispatch(setSidebarOpen(true))}
       >
-        <div className="lg:hidden flex justify-end p-3">
-          <button
-            aria-label="Close sidebar"
-            onClick={() => dispatch(setSidebarOpen(false))}
-            className="p-2 rounded-md hover:bg-gray-100"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+        <Menu className="w-5 h-5" />
+      </button>
 
-        {/* Header / Brand + collapse toggle (desktop) */}
-        <div className="hidden lg:flex items-center justify-between px-3 py-3 border-b border-white/20">
-          <div className={`font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600 ${collapsed ? 'mx-auto' : ''}`}>
-            {collapsed ? 'N' : 'Nexus'}
+      {/* Sidebar - ChatGPT style with collapse support */}
+      <aside
+        className={`${collapsed ? 'w-16' : 'w-64'} h-screen z-50 lg:z-auto transform transition-all duration-200 ease-out
+        fixed top-0 left-0 flex flex-col
+        ${open ? 'translate-x-0' : '-translate-x-full'}
+        lg:translate-x-0 bg-gray-900 text-white`}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-700">
+          {!collapsed && <div className="font-bold text-xl">Nexus</div>}
+          <div className="flex items-center gap-2">
+            {/* Desktop collapse toggle */}
+            <button
+              className="hidden lg:block p-1 rounded hover:bg-gray-700"
+              onClick={() => dispatch(toggleSidebarCollapse())}
+              title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              {collapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+            </button>
+            {/* Mobile close button */}
+            <button
+              className="lg:hidden p-1 rounded hover:bg-gray-700"
+              onClick={() => dispatch(setSidebarOpen(false))}
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <button
-            type="button"
-            aria-label="Collapse sidebar"
-            onClick={() => setCollapsed((v) => !v)}
-            className="p-2 rounded-md text-gray-600 hover:bg-white/60"
-            title={collapsed ? 'Expand' : 'Collapse'}
-          >
-            <ChevronLeft className={`w-5 h-5 transition-transform ${collapsed ? 'rotate-180' : ''}`} />
-          </button>
         </div>
 
-        <nav className="px-3 pb-6">
-          <div className="space-y-1">
+        {/* Navigation - Scrollable middle section */}
+        <nav className="flex-1 overflow-y-auto py-4">
+          <div className="space-y-1 px-3">
             {items.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`group flex items-center ${collapsed ? 'justify-center' : 'gap-3'} px-3 py-2 rounded-md text-sm transition-colors
+                className={`group flex items-center ${collapsed ? 'justify-center px-3' : 'gap-3 px-3'} py-2.5 rounded-lg text-sm transition-colors
                   ${isActive(item.href)
-                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm'
-                    : 'text-gray-700 hover:bg-white/60'}
+                    ? 'bg-gray-700 text-white'
+                    : 'text-gray-300 hover:bg-gray-800 hover:text-white'}
                 `}
                 aria-current={isActive(item.href) ? 'page' : undefined}
                 title={collapsed ? item.label : undefined}
@@ -222,16 +228,9 @@ export default function Sidebar() {
                 {item.icon}
                 {!collapsed && (
                   <>
-                    <span>{item.label}</span>
-                    {typeof item.badge === 'number' && (
-                      <span
-                        className={`ml-auto inline-flex items-center justify-center rounded-full text-[11px] px-1.5 py-0.5
-                        ${item.badge > 0
-                          ? 'bg-white/90 text-blue-700'
-                          : 'bg-white/60 text-gray-700'}
-                        `}
-                        aria-label={`${item.badge} collaborations`}
-                      >
+                    <span className="flex-1">{item.label}</span>
+                    {typeof item.badge === 'number' && item.badge > 0 && (
+                      <span className="bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full">
                         {item.badge}
                       </span>
                     )}
@@ -241,6 +240,34 @@ export default function Sidebar() {
             ))}
           </div>
         </nav>
+
+        {/* User info and logout - Fixed at bottom */}
+        <div className="border-t border-gray-700 p-4">
+          {!collapsed && (
+            <div className="flex items-center gap-3 mb-3 px-3 py-2">
+              <div className="w-8 h-8 bg-gray-600 rounded-full flex items-center justify-center">
+                <User className="w-4 h-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-white truncate">
+                  {user?.name || 'User'}
+                </div>
+                <div className="text-xs text-gray-400 capitalize">
+                  {user?.role?.replace('_', ' ') || 'Role'}
+                </div>
+              </div>
+            </div>
+          )}
+          
+          <button
+            onClick={handleLogout}
+            className={`w-full flex items-center ${collapsed ? 'justify-center px-3' : 'gap-3 px-3'} py-2.5 rounded-lg text-sm text-gray-300 hover:bg-gray-800 hover:text-white transition-colors`}
+            title={collapsed ? 'Logout' : undefined}
+          >
+            <LogOut className="w-4 h-4" />
+            {!collapsed && <span>Logout</span>}
+          </button>
+        </div>
       </aside>
     </>
   );

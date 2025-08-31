@@ -1,9 +1,11 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
 import type { RootState } from '../store';
 import { projectsApi, Project, CreateProjectRequest, UpdateProjectRequest, ProjectsListParams, ProjectsListResponse } from '@/lib/projectsApi';
+import type { PersonalProject } from '@/lib/profileApi';
 
 interface ProjectsState {
   items: Project[];
+  personalProjects: PersonalProject[]; // Personal projects from profile service
   loading: boolean;
   error?: string;
   pagination: {
@@ -14,6 +16,7 @@ interface ProjectsState {
 
 const initialState: ProjectsState = {
   items: [],
+  personalProjects: [],
   loading: false,
   pagination: {
     page: 1,
@@ -29,6 +32,18 @@ export const fetchMyProjects = createAsyncThunk<Project[]>(
     return response.projects;
   }
 );
+
+// Personal projects for profile pages
+export const fetchMyPersonalProjects = createAsyncThunk<PersonalProject[]>(
+  'projects/fetchMyPersonalProjects',
+  async () => {
+    const { profileApi } = await import('@/lib/profileApi');
+    return await profileApi.getMyPersonalProjects();
+  }
+);
+
+// Alias for profile components
+export const fetchPersonalProjects = fetchMyProjects;
 
 export const fetchProjects = createAsyncThunk<ProjectsListResponse, ProjectsListParams | undefined>(
   'projects/fetchProjects',
@@ -78,28 +93,28 @@ const projectsSlice = createSlice({
       .addCase(fetchMyProjects.pending, (state) => {
         state.loading = true;
         state.error = undefined;
-        try { console.debug('[projectsSlice] fetchMyProjects pending'); } catch {}
       })
       .addCase(fetchMyProjects.fulfilled, (state, action: PayloadAction<Project[]>) => {
         state.loading = false;
         state.items = action.payload;
-        try {
-          console.debug('[projectsSlice] fetchMyProjects fulfilled', {
-            count: action.payload.length,
-            sample: action.payload[0]
-              ? {
-                  id: action.payload[0].id,
-                  authorId: action.payload[0].authorId,
-                  progressStatus: action.payload[0].progressStatus,
-                }
-              : null,
-          });
-        } catch {}
       })
       .addCase(fetchMyProjects.rejected, (state, action) => {
         state.loading = false;
         state.error = action.error.message || 'Failed to load projects';
-        try { console.error('[projectsSlice] fetchMyProjects rejected', action.error); } catch {}
+      })
+      
+      // Fetch personal projects for profile pages
+      .addCase(fetchMyPersonalProjects.pending, (state) => {
+        state.loading = true;
+        state.error = undefined;
+      })
+      .addCase(fetchMyPersonalProjects.fulfilled, (state, action: PayloadAction<PersonalProject[]>) => {
+        state.loading = false;
+        state.personalProjects = action.payload;
+      })
+      .addCase(fetchMyPersonalProjects.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to load personal projects';
       })
       
       // Fetch projects with pagination

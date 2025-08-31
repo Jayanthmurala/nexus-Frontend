@@ -11,9 +11,15 @@ import {
   Send,
   Paperclip,
   MoreVertical,
+  TrendingUp,
+  Star,
+  Download,
+  ExternalLink,
+  Calendar as CalendarIcon,
 } from 'lucide-react';
 import axios from 'axios';
 import type { AxiosProgressEvent } from 'axios';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import AwardBadge from '@/components/Dashboard/Faculty/AwardBadge';
@@ -330,62 +336,113 @@ export default function CollaborationHub() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Collaboration Hub</h1>
-        <p className="text-gray-600 mt-1">Collaborate and manage your active project teams</p>
-      </div>
+      <motion.div 
+        className="flex flex-col sm:flex-row sm:items-center sm:justify-between"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <div>
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            Collaboration Hub
+          </h1>
+          <p className="text-gray-600 mt-2 text-lg">Collaborate and manage your active project teams</p>
+        </div>
+        <motion.div 
+          className="mt-4 sm:mt-0 flex items-center space-x-4"
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+        >
+          <motion.span 
+            className="inline-flex items-center px-4 py-2 rounded-xl text-sm font-semibold bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <TrendingUp className="w-4 h-4 mr-2" />
+            {activeProjects.length} active project{activeProjects.length !== 1 ? 's' : ''}
+          </motion.span>
+        </motion.div>
+      </motion.div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Project Sidebar */}
-        <div className="lg:col-span-1">
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-            <h2 className="font-semibold text-gray-900 mb-4">Active Projects</h2>
-            <div className="space-y-2">
-              {activeProjects.map((project) => (
-                <button
-                  key={project.id}
-                  onClick={() => setSelectedProject(project.id)}
-                  className={`w-full text-left p-3 rounded-lg transition-colors ${
-                    selectedProject === project.id ||
-                    (!selectedProject && project === activeProjects[0])
-                      ? 'bg-blue-100 border border-blue-200 text-blue-900'
-                      : 'hover:bg-gray-50 text-gray-700'
-                  }`}
-                >
-                  <div className="font-medium text-sm mb-1">{project.title}</div>
-                  <div className="text-xs text-gray-500 flex items-center">
-                    <Users className="w-3 h-3 mr-1" />
-                    {project.currentStudents} student
-                    {project.currentStudents !== 1 ? 's' : ''}
-                  </div>
-                </button>
-              ))}
+        <motion.div 
+          className="lg:col-span-1"
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+        >
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-lg p-6">
+            <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center">
+              <Star className="w-5 h-5 mr-2 text-blue-600" />
+              Active Projects
+            </h2>
+            <div className="space-y-3">
+              {activeProjects.map((project, index) => {
+                const isActive = selectedProject === project.id || (!selectedProject && project === activeProjects[0]);
+                return (
+                  <motion.button
+                    key={project.id}
+                    onClick={() => setSelectedProject(project.id)}
+                    className={`w-full text-left p-4 rounded-xl transition-all duration-200 ${
+                      isActive
+                        ? "bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 text-blue-900 shadow-md" 
+                        : "hover:bg-gray-50 text-gray-700 border border-gray-200 hover:border-gray-300 hover:shadow-sm"
+                    }`}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, delay: index * 0.1 }}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <div className="font-semibold text-sm mb-2 line-clamp-2">{project.title}</div>
+                    <div className="text-xs text-gray-500 flex items-center">
+                      <Users className="w-3 h-3 mr-1" />
+                      {project.currentStudents} collaborator{project.currentStudents !== 1 ? 's' : ''}
+                    </div>
+                  </motion.button>
+                );
+              })}
             </div>
           </div>
-        </div>
+        </motion.div>
 
         {/* Main Collaboration Area */}
-        <div className="lg:col-span-3">
+        <motion.div 
+          className="lg:col-span-3"
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+        >
           {selectedProjectData && (
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-lg overflow-hidden">
               {/* Project Header */}
-              <div className="p-6 border-b border-gray-200">
+              <div className="p-6 bg-gradient-to-r from-blue-50 to-purple-50 border-b border-gray-200">
                 <div className="flex items-start justify-between">
-                  <div>
-                    <h2 className="text-xl font-semibold text-gray-900 mb-1">
-                      {selectedProjectData.title}
-                    </h2>
-                    <p className="text-gray-600 text-sm">
-                      {selectedProjectData.description}
-                    </p>
+                  <div className="flex-1">
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">{selectedProjectData.title}</h2>
+                    <p className="text-gray-600 text-sm leading-relaxed mb-4">{selectedProjectData.description}</p>
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center text-sm text-gray-600">
+                        <Users className="w-4 h-4 mr-1 text-blue-600" />
+                        <span className="font-medium">Faculty Project</span>
+                      </div>
+                      <div className="flex items-center text-sm text-gray-600">
+                        <CalendarIcon className="w-4 h-4 mr-1 text-green-600" />
+                        <span>Created {new Date(selectedProjectData.createdAt || Date.now()).toLocaleDateString()}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full">
-                      {selectedProjectData.currentStudents} collaborator
-                      {selectedProjectData.currentStudents !== 1 ? 's' : ''}
-                    </span>
+                  <div className="flex items-center space-x-3">
+                    <motion.span 
+                      className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white text-sm font-semibold rounded-xl shadow-lg"
+                      whileHover={{ scale: 1.05 }}
+                    >
+                      {selectedProjectData.currentStudents} collaborator{selectedProjectData.currentStudents !== 1 ? 's' : ''}
+                    </motion.span>
                   </div>
                 </div>
               </div>
@@ -394,74 +451,103 @@ export default function CollaborationHub() {
               <div className="border-b border-gray-200">
                 <nav className="flex space-x-8 px-6">
                   {[
-                    { id: 'chat', label: 'Chat', icon: MessageSquare },
-                    { id: 'tasks', label: 'Tasks', icon: CheckSquare },
-                    { id: 'files', label: 'Files', icon: FolderOpen },
+                    { id: 'chat', label: 'Messages', icon: MessageSquare, count: projectComments.length },
+                    { id: 'tasks', label: 'Tasks', icon: CheckSquare, count: tasks.length },
+                    { id: 'files', label: 'Files', icon: FolderOpen, count: attachments.length },
                   ].map((tab) => (
-                    <button
+                    <motion.button
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id as any)}
-                      className={`flex items-center py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                      className={`flex items-center py-4 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
                         activeTab === tab.id
                           ? 'border-blue-500 text-blue-600'
                           : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                       }`}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
                     >
                       <tab.icon className="w-4 h-4 mr-2" />
                       {tab.label}
-                    </button>
+                      {tab.count > 0 && (
+                        <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-bold ${
+                          activeTab === tab.id ? "bg-blue-100 text-blue-700" : "bg-gray-200 text-gray-600"
+                        }`}>
+                          {tab.count}
+                        </span>
+                      )}
+                    </motion.button>
                   ))}
                 </nav>
               </div>
 
               {/* Tab Content */}
               <div className="p-6">
-                {activeTab === 'chat' && (
-                  <div className="space-y-4">
-                    {/* Messages */}
-                    <div className="h-96 overflow-y-auto border border-gray-200 rounded-lg p-4 space-y-4">
-                      {projectComments.map((c) => {
-                        const isMe = c.authorId === user?.id;
-                        const ts = new Date(c.createdAt);
-                        return (
-                          <div key={c.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                            <div
-                              className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                                isMe ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-900'
-                              }`}
-                            >
-                              <div className="text-sm font-medium mb-1">{c.authorName}</div>
-                              <div className="text-sm">{c.body}</div>
-                              <div className={`text-xs mt-1 ${isMe ? 'text-blue-100' : 'text-gray-500'}`}>
-                                {ts.toLocaleTimeString()}
-                              </div>
+                <AnimatePresence mode="wait">
+                  {activeTab === 'chat' && (
+                    <motion.div 
+                      key="chat"
+                      className="space-y-6"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      <div className="bg-gradient-to-br from-gray-50 to-blue-50 rounded-xl border border-gray-200 overflow-hidden">
+                        <div className="h-96 overflow-y-auto p-6 space-y-4">
+                          {projectComments.length === 0 ? (
+                            <div className="text-center py-12">
+                              <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                              <p className="text-gray-500">No messages yet. Start the conversation!</p>
                             </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* Message Input */}
-                    <div className="flex items-center space-x-2">
-                      <div className="flex-1 relative">
+                          ) : (
+                            projectComments.map((c, index) => {
+                              const isOwn = c.authorId === user?.id;
+                              return (
+                                <motion.div 
+                                  key={c.id} 
+                                  className={`flex ${isOwn ? "justify-end" : "justify-start"}`}
+                                  initial={{ opacity: 0, y: 10 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  transition={{ duration: 0.2, delay: index * 0.05 }}
+                                >
+                                  <div className={`max-w-xs lg:max-w-md px-4 py-3 rounded-2xl shadow-sm ${
+                                    isOwn 
+                                      ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white" 
+                                      : "bg-white text-gray-900 border border-gray-200"
+                                  }`}>
+                                    <div className="text-sm leading-relaxed">{c.body}</div>
+                                    <div className={`text-xs mt-2 ${isOwn ? "text-blue-100" : "text-gray-500"}`}>
+                                      {c.authorName} • {new Date(c.createdAt).toLocaleTimeString()}
+                                    </div>
+                                  </div>
+                                </motion.div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex space-x-3 bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
                         <input
                           type="text"
                           value={newMessage}
                           onChange={(e) => setNewMessage(e.target.value)}
-                          placeholder="Type your message..."
-                          className="w-full py-2 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+                          placeholder="Type a message..."
+                          className="flex-1 border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                          onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
                         />
+                        <motion.button
+                          onClick={sendMessage}
+                          disabled={!newMessage.trim()}
+                          className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:from-gray-300 disabled:to-gray-300 text-white p-3 rounded-xl transition-all duration-200 shadow-lg disabled:shadow-none"
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                        >
+                          <Send className="w-4 h-4" />
+                        </motion.button>
                       </div>
-                      <button
-                        onClick={sendMessage}
-                        className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-                      >
-                        <Send className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </div>
-                )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {activeTab === 'tasks' && (
                   <div className="space-y-4">
@@ -638,7 +724,7 @@ export default function CollaborationHub() {
               </div>
             </div>
           )}
-        </div>
+        </motion.div>
       </div>
 
       {showAwardBadge && selectedStudent && (

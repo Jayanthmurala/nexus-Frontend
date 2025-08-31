@@ -5,7 +5,7 @@ import { signIn as nextAuthSignIn, signOut as nextAuthSignOut, useSession } from
 import { getMe } from '@/lib/me';
 import http from '@/lib/http';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { saveMyProfile, selectProfile, fetchMyProfile, initializeMyProfile } from '@/store/slices/profileSlice';
+// Profile slice removed - profile functionality disabled
 import { useRouter } from 'next/navigation';
 
 export type UserRole = 'student' | 'faculty' | 'dept_admin' | 'placements_admin' | 'head_admin';
@@ -21,6 +21,7 @@ export interface SocialLinks {
 }
 
 export interface User {
+  displayName: string;
   id: string;
   name: string;
   email: string;
@@ -41,7 +42,6 @@ export interface User {
 interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<boolean>;
-  register: (userData: Partial<User> & { password: string }) => Promise<boolean>;
   logout: () => void;
   updateProfile: (updates: Partial<User>) => void;
   loading: boolean;
@@ -54,7 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(false);
   const { data: session, status } = useSession();
   const dispatch = useAppDispatch();
-  const profile = useAppSelector(selectProfile);
+  // Profile functionality removed
   const router = useRouter();
 
   // Guards to prevent redundant fetches/updates
@@ -76,8 +76,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const sessionUserId = (session as any)?.user?.id as string | undefined;
       if (sessionUserId && lastSessionUserIdRef.current !== sessionUserId) {
         lastSessionUserIdRef.current = sessionUserId;
-        try { console.debug('[AuthContext] fetchMyProfile (user changed)', { userId: sessionUserId }); } catch {}
-        dispatch(fetchMyProfile());
+        try { console.debug('[AuthContext] profile functionality disabled', { userId: sessionUserId }); } catch {}
+        // Profile functionality removed
       }
 
       const allowed = ['student','faculty','dept_admin','placements_admin','head_admin'] as const;
@@ -110,8 +110,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   name: me.displayName || (session.user.name as string) || '',
                   email: me.email || session.user.email || '',
                   role: role2,
-                  avatar: undefined,
+                  avatar: me.avatarUrl || undefined,
+                  collegeId: me.collegeId,
+                  department: me.department,
+                  year: me.year,
+                  collegeMemberId: me.collegeMemberId,
                   createdAt: new Date(),
+                  displayName: ''
                 };
                 setUser((prev) => {
                   const same = !!prev && prev.id === nextUser.id && prev.email === nextUser.email && prev.role === nextUser.role && (prev.name || '') === (nextUser.name || '');
@@ -142,7 +147,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email: session.user.email || '',
         role,
         avatar: undefined,
+        collegeId: (session as any).user.collegeId,
+        department: (session as any).user.department,
+        year: (session as any).user.year,
+        collegeMemberId: (session as any).user.collegeMemberId,
         createdAt: new Date(),
+        displayName: ''
       };
       setUser((prev) => {
         const same = !!prev && prev.id === mapped.id && prev.email === mapped.email && prev.role === mapped.role && (prev.name || '') === (mapped.name || '');
@@ -174,8 +184,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 name: me.displayName || '',
                 email: me.email,
                 role: role2,
-                avatar: undefined,
+                avatar: me.avatarUrl || undefined,
+                collegeId: me.collegeId,
+                department: me.department,
+                year: me.year,
+                collegeMemberId: me.collegeMemberId,
                 createdAt: new Date(),
+                displayName: ''
               };
               setUser((prev) => {
                 const same = !!prev && prev.id === nextUser.id && prev.email === nextUser.email && prev.role === nextUser.role && (prev.name || '') === (nextUser.name || '');
@@ -214,41 +229,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const register = async (userData: Partial<User> & { password: string }): Promise<boolean> => {
-    setLoading(true);
-    try {
-      const payload = {
-        email: userData.email,
-        password: userData.password,
-        displayName: userData.name || '',
-      };
-      const { data } = await http.post(`/v1/auth/register`, payload);
-      if (!data?.accessToken) return false;
-      const result = await nextAuthSignIn('credentials', {
-        accessToken: data.accessToken,
-        user: JSON.stringify(data.user),
-        redirect: false,
-      });
-      const ok = !result?.error;
-      // Initialize profile after successful sign-in if registration provided details
-      if (ok && userData.collegeId && userData.department) {
-        try {
-          await dispatch(initializeMyProfile({
-            collegeId: userData.collegeId,
-            department: userData.department,
-            year: typeof userData.year === 'number' ? userData.year : undefined,
-            collegeMemberId: userData.collegeMemberId,
-          }));
-        } catch (e) {
-          // swallow errors to not block registration UX
-          console.error('initializeMyProfile failed', e);
-        }
-      }
-      return ok;
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const logout = async () => {
     try {
@@ -295,9 +275,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
       // Only dispatch if we have an existing profile (collegeId & department known)
-      if (profile && Object.keys(backendChanges).length > 0) {
-        void dispatch(saveMyProfile(backendChanges));
-      }
+      // Profile functionality removed - no backend sync
     }
   };
 
@@ -305,7 +283,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider value={{
       user,
       login,
-      register,
       logout,
       updateProfile,
       loading

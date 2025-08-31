@@ -5,6 +5,10 @@ export type EventType = "WORKSHOP" | "SEMINAR" | "HACKATHON" | "MEETUP";
 export type EventMode = "ONLINE" | "ONSITE" | "HYBRID";
 export type ModerationStatus = "PENDING_REVIEW" | "APPROVED" | "REJECTED";
 
+// Legacy types for backward compatibility during migration
+export type LegacyEventType = 'workshop' | 'seminar' | 'competition' | 'networking';
+export type LegacyEventMode = 'online' | 'in_person' | 'hybrid';
+
 export interface Event {
   id: string;
   collegeId: string;
@@ -20,9 +24,12 @@ export interface Event {
   location?: string | null;
   meetingUrl?: string | null;
   capacity?: number | null;
+  registrationDeadline?: string | null; // ISO
   visibleToAllDepts: boolean;
   departments: string[];
   tags: string[];
+  requirements?: string;
+  benefits?: string;
   moderationStatus: ModerationStatus;
   monitorId?: string | null;
   monitorName?: string | null;
@@ -30,15 +37,46 @@ export interface Event {
   updatedAt: string;
   archivedAt?: string | null;
   // Aggregated/derived fields included by backend for convenience
-  registrationCount?: number; // total registrations for the event
+  registrationCount: number; // total registrations for the event (default 0)
   isRegistered?: boolean; // whether the current user is registered
+}
+
+// Badge eligibility response
+export interface EventEligibility {
+  canCreate: boolean;
+  missingBadges: string[];
+  badgesEarned?: number;
+  badgesRequired?: number;
+  progressPercentage?: number;
+}
+
+// Approval flow tracking
+export interface EventApprovalFlow {
+  id: string;
+  eventId: string;
+  submittedAt: string;
+  assignedTo?: string;
+  assignedToName?: string;
+  escalatedAt?: string;
+  escalatedTo?: string;
+  escalatedToName?: string;
+  approvedAt?: string;
+  approvedBy?: string;
+  approvedByName?: string;
+  rejectedAt?: string;
+  rejectedBy?: string;
+  rejectedByName?: string;
+  rejectionReason?: string;
+  mentorAssigned?: string;
+  mentorName?: string;
+  isEscalated: boolean;
 }
 
 export interface CreateEventRequest {
   title: string;
   description: string;
   startAt: string; // ISO
-  endAt: string;   // ISO
+  endAt?: string;  // ISO - Optional for single-day events
   type: EventType;
   mode: EventMode;
   location?: string;
@@ -95,69 +133,84 @@ export interface ModerateEventRequest {
   action: "APPROVE" | "REJECT" | "ASSIGN";
   monitorId?: string;
   monitorName?: string;
+  mentorId?: string;
+  mentorName?: string;
+  rejectionReason?: string;
 }
 
 export const eventsApi = {
+  // List events with optional filters/pagination
   async listEvents(params?: EventsListParams): Promise<EventsListResponse> {
-    const res = await httpEvents.get('/v1/events', { params });
-    return res.data;
+    const response = await httpEvents.get('/v1/events', { params });
+    return response.data;
   },
 
+  // Get single event by ID
   async getEvent(id: string): Promise<{ event: Event }> {
-    const res = await httpEvents.get(`/v1/events/${id}`);
-    return res.data;
+    const response = await httpEvents.get(`/v1/events/${id}`);
+    return response.data;
   },
 
-  async createEvent(data: CreateEventRequest): Promise<{ event: Event }> {
-    const res = await httpEvents.post('/v1/events', data);
-    return res.data;
-  },
-
-  async updateEvent(id: string, data: UpdateEventRequest): Promise<{ event: Event }> {
-    const res = await httpEvents.put(`/v1/events/${id}`, data);
-    return res.data;
-  },
-
-  async moderateEvent(id: string, data: ModerateEventRequest): Promise<{ event: Event }> {
-    const res = await httpEvents.patch(`/v1/events/${id}/moderate`, data);
-    return res.data;
-  },
-
-  async registerForEvent(id: string): Promise<{ registration: EventRegistration }> {
-    const res = await httpEvents.post(`/v1/events/${id}/register`);
-    return res.data;
-  },
-
-  async unregisterFromEvent(id: string): Promise<{ success: boolean }> {
-    const res = await httpEvents.delete(`/v1/events/${id}/register`);
-    return res.data;
-  },
-
+  // Get my events (authored + registered)
   async getMyEvents(): Promise<{ events: Event[] }> {
-    const res = await httpEvents.get('/v1/events/mine');
-    return res.data;
+    const response = await httpEvents.get('/v1/events/my');
+    return response.data;
   },
 
-  async getEligibility(): Promise<{ canCreate: boolean; missingBadges: string[] }> {
-    const res = await httpEvents.get('/v1/events/eligibility');
-    return res.data;
+  // Create event
+  async createEvent(data: CreateEventRequest): Promise<{ event: Event }> {
+    const response = await httpEvents.post('/v1/events', data);
+    return response.data;
   },
 
-  async deleteEvent(id: string): Promise<{ success: boolean }> {
-    const res = await httpEvents.delete(`/v1/events/${id}`);
-    return res.data;
+  // Update event
+  async updateEvent(id: string, data: UpdateEventRequest): Promise<{ event: Event }> {
+    const response = await httpEvents.put(`/v1/events/${id}`, data);
+    return response.data;
   },
 
+  // Delete event
+  async deleteEvent(id: string): Promise<void> {
+    await httpEvents.delete(`/v1/events/${id}`);
+  },
+
+  // Register for event
+  async registerForEvent(id: string): Promise<{ registration: EventRegistration }> {
+    const response = await httpEvents.post(`/v1/events/${id}/register`);
+    return response.data;
+  },
+
+  // Unregister from event
+  async unregisterFromEvent(id: string): Promise<void> {
+    await httpEvents.delete(`/v1/events/${id}/register`);
+  },
+
+  // Moderate event (admin only)
+  async moderateEvent(id: string, data: ModerateEventRequest): Promise<{ event: Event }> {
+    const response = await httpEvents.post(`/v1/events/${id}/moderate`, data);
+    return response.data;
+  },
+
+  // Export registrations (faculty only)
   async exportRegistrations(id: string): Promise<{ blob: Blob; filename: string }> {
-    const res = await httpEvents.get(`/v1/events/${id}/export`, { responseType: 'blob' });
-    let filename = 'registrations.csv';
-    const cd = (res.headers as any)?.['content-disposition'] as string | undefined;
-    if (cd) {
-      const match = cd.match(/filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i);
-      const raw = decodeURIComponent(match?.[1] || match?.[2] || '');
-      if (raw) filename = raw;
-    }
-    return { blob: res.data as Blob, filename };
+    const response = await httpEvents.get(`/v1/events/${id}/export`, {
+      responseType: 'blob',
+    });
+    const filename = response.headers['content-disposition']?.match(/filename="(.+)"/)?.[1] || `event-${id}-registrations.csv`;
+    return { blob: response.data, filename };
+  },
+
+  // Check badge eligibility for event creation (students)
+  async getEligibility(): Promise<EventEligibility> {
+    const response = await httpEvents.get('/v1/events/eligibility');
+    return response.data;
+  },
+
+  // Get approval flows for events (admin only)
+  async getApprovalFlows(eventId?: string): Promise<{ flows: EventApprovalFlow[] }> {
+    const url = eventId ? `/v1/events/${eventId}/approval-flow` : '/v1/events/approval-flows';
+    const response = await httpEvents.get(url);
+    return response.data;
   },
 };
 

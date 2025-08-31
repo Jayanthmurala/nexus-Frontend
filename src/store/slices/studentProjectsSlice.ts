@@ -1,7 +1,7 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
 import type { RootState } from '../store';
-import type { PersonalProject, CreateProjectPayload, UpdateProjectPayload } from '@/lib/profileApi';
-import { getMyProjects, createProject as apiCreate, updateProject as apiUpdate, deleteProject as apiDelete } from '@/lib/profileApi';
+import type { PersonalProject } from '../../lib/profileApi';
+import { profileApi } from '../../lib/profileApi';
 
 export interface UIProject {
   id: string;
@@ -31,7 +31,7 @@ function toUIProject(p: PersonalProject): UIProject {
     id: p.id,
     title: p.title,
     description: p.description,
-    tech: p.tech, // optional, UI-only
+    tech: p.technologies, // map technologies to tech for UI
     link: p.demoLink || p.github, // prefer demo as primary link
     repo: p.github,
     demo: p.demoLink,
@@ -41,10 +41,10 @@ function toUIProject(p: PersonalProject): UIProject {
 }
 
 // Thunks
-export const fetchMyProjects = createAsyncThunk<UIProject[]>(
+export const fetchMyProjects = createAsyncThunk<UIProject[], string>(
   'studentProjects/fetchMyProjects',
-  async () => {
-    const list = await getMyProjects();
+  async (userId) => {
+    const list = await profileApi.getPersonalProjects(userId);
     return list.map(toUIProject);
   }
 );
@@ -52,38 +52,39 @@ export const fetchMyProjects = createAsyncThunk<UIProject[]>(
 export const createStudentProject = createAsyncThunk<UIProject, { title: string; description: string; repo?: string; demo?: string; image?: string; tech?: string[] }>(
   'studentProjects/create',
   async (payload) => {
-    const apiPayload: CreateProjectPayload = {
+    const apiPayload = {
       title: payload.title,
       description: payload.description,
       github: payload.repo,
       demoLink: payload.demo,
       image: payload.image,
+      technologies: payload.tech || [],
     };
-    const created = await apiCreate(apiPayload);
-    // carry over tech client-side only
-    return toUIProject({ ...created, tech: payload.tech });
+    const created = await profileApi.createPersonalProject(apiPayload);
+    return toUIProject(created);
   }
 );
 
 export const updateStudentProject = createAsyncThunk<UIProject, { id: string; changes: { title?: string; description?: string; repo?: string; demo?: string; image?: string; tech?: string[] } }>(
   'studentProjects/update',
   async ({ id, changes }) => {
-    const apiChanges: UpdateProjectPayload = {
+    const apiChanges = {
       title: changes.title,
       description: changes.description,
       github: changes.repo,
       demoLink: changes.demo,
       image: changes.image,
+      technologies: changes.tech,
     };
-    const updated = await apiUpdate(id, apiChanges);
-    return toUIProject({ ...updated, tech: changes.tech });
+    const updated = await profileApi.updatePersonalProject(id, apiChanges);
+    return toUIProject(updated);
   }
 );
 
 export const deleteStudentProject = createAsyncThunk<string, string>(
   'studentProjects/delete',
   async (id) => {
-    await apiDelete(id);
+    await profileApi.deletePersonalProject(id);
     return id;
   }
 );

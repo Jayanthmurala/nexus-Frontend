@@ -1,6 +1,6 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
 import type { RootState } from '../store';
-import { getColleges, type College } from '@/lib/profileApi';
+import { getColleges, type College } from '@/lib/collegeApi';
 
 interface CollegesState {
   items: College[];
@@ -16,7 +16,8 @@ const initialState: CollegesState = {
 export const fetchColleges = createAsyncThunk<College[]>(
   'colleges/fetchColleges',
   async () => {
-    return await getColleges();
+    const response = await getColleges();
+    return response.colleges;
   }
 );
 

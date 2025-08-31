@@ -6,6 +6,11 @@ export type MeResponse = {
   email: string;
   displayName: string;
   roles: string[];
+  avatarUrl?: string | null;
+  collegeId?: string;
+  department?: string;
+  year?: number;
+  collegeMemberId?: string;
 };
 
 export async function getMe() {

@@ -21,6 +21,7 @@ import {
 interface BadgesState {
   definitions: BadgeDefinition[];
   awardsByStudent: Record<string, StudentBadgeAward[]>;
+  badges: StudentBadgeAward[]; // Alias for profile components
   recentAwards: StudentBadgeAward[];
   awardCounts: Record<string, number>;
   loading: boolean;
@@ -31,6 +32,7 @@ interface BadgesState {
 const initialState: BadgesState = {
   definitions: [],
   awardsByStudent: {},
+  badges: [],
   recentAwards: [],
   awardCounts: {},
   loading: false,
@@ -54,6 +56,9 @@ export const fetchAwardsForStudent = createAsyncThunk<
   awards.sort((a, b) => new Date(b.awardedAt).getTime() - new Date(a.awardedAt).getTime());
   return { studentId, awards };
 });
+
+// Alias for profile components
+export const fetchStudentBadges = fetchAwardsForStudent;
 
 export const fetchRecentAwards = createAsyncThunk<StudentBadgeAward[], { limit?: number } | undefined>(
   'badges/fetchRecentAwards',
@@ -127,8 +132,9 @@ const badgesSlice = createSlice({
       })
       .addCase(fetchAwardsForStudent.fulfilled, (state, action) => {
         const { studentId, awards } = action.payload;
-        state.loadingByStudent[studentId] = false;
         state.awardsByStudent[studentId] = awards;
+        state.badges = awards; // Update badges array for profile components
+        state.loadingByStudent[studentId] = false;
       })
       .addCase(fetchAwardsForStudent.rejected, (state, action) => {
         const studentId = (action.meta.arg as any).studentId as string;
@@ -167,5 +173,12 @@ export const selectAwardsForStudent = (state: RootState, studentId: string) => s
 export const selectRecentAwards = (state: RootState) => state.badges.recentAwards;
 export const selectAwardCounts = (state: RootState) => state.badges.awardCounts;
 export const selectBadgesLoading = (state: RootState) => state.badges.loading;
+
+// Selector for current user's badges (assumes current user ID is available in auth state)
+export const selectMyBadges = (state: RootState) => {
+  // This will need to be updated based on how user ID is stored in your auth state
+  // For now, returning empty array - should be connected to auth state
+  return [];
+};
 
 export default badgesSlice.reducer;

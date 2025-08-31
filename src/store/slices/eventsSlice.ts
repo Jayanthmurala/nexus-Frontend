@@ -9,33 +9,54 @@ import eventsApi, {
   type EventsListResponse,
   type EventRegistration,
   type ModerateEventRequest,
+  type EventEligibility,
+  type EventApprovalFlow,
 } from '@/lib/eventsApi';
 
 interface EventsState {
   items: Event[];
   mine: Event[];
+  myRegisteredEventIds: string[];
+  myRegistrations: EventRegistration[];
   current: Event | null;
-  eligibility: { canCreate: boolean; missingBadges: string[] } | null;
+  eligibility: EventEligibility | null;
+  approvalFlows: Record<string, EventApprovalFlow>; // eventId -> flow
   loading: boolean;
   // Per-thunk in-flight flags to guard duplicate requests
   isFetchingList: boolean;
   isFetchingMine: boolean;
+  isFetchingRegistrations: boolean;
+  isFetchingEligibility: boolean;
   error?: string;
   pagination: {
     page: number;
     total: number;
+    limit: number;
+  };
+  filters: {
+    department?: string;
+    type?: string;
+    mode?: string;
+    status?: string;
+    upcomingOnly?: boolean;
   };
 }
 
 const initialState: EventsState = {
   items: [],
   mine: [],
+  myRegisteredEventIds: [],
+  myRegistrations: [],
   current: null,
   eligibility: null,
+  approvalFlows: {},
   loading: false,
   isFetchingList: false,
   isFetchingMine: false,
-  pagination: { page: 1, total: 0 },
+  isFetchingRegistrations: false,
+  isFetchingEligibility: false,
+  pagination: { page: 1, total: 0, limit: 20 },
+  filters: {},
 };
 
 // List events with filters/pagination
@@ -69,6 +90,32 @@ export const fetchMyEvents = createAsyncThunk<Event[], void, { state: RootState 
       const { isFetchingMine } = (getState() as RootState).events;
       // Prevent duplicate in-flight "mine" requests
       return !isFetchingMine;
+    },
+  }
+);
+
+// Fetch my registrations to get registered event IDs
+export const fetchMyRegistrations = createAsyncThunk<EventRegistration[], void, { state: RootState }>(
+  'events/fetchMyRegistrations',
+  async () => {
+    // This would call a backend endpoint like GET /v1/events/registrations/mine
+    // For now, we'll extract from myEvents
+    const res = await eventsApiNamed.getMyEvents();
+    // Filter events where user is registered (not authored)
+    const registrations: EventRegistration[] = res.events
+      .filter(event => event.isRegistered)
+      .map(event => ({
+        id: `reg-${event.id}`,
+        eventId: event.id,
+        userId: 'current-user', // This would come from auth context
+        joinedAt: new Date().toISOString()
+      }));
+    return registrations;
+  },
+  {
+    condition: (_arg, { getState }) => {
+      const { isFetchingRegistrations } = (getState() as RootState).events;
+      return !isFetchingRegistrations;
     },
   }
 );
@@ -145,10 +192,25 @@ export const exportEventRegistrations = createAsyncThunk<{ blob: Blob; filename:
 );
 
 // Eligibility for student event creation
-export const fetchEventEligibility = createAsyncThunk<{ canCreate: boolean; missingBadges: string[] }>(
+export const fetchEventEligibility = createAsyncThunk<EventEligibility, void, { state: RootState }>(
   'events/fetchEligibility',
   async () => {
     return await eventsApiNamed.getEligibility();
+  },
+  {
+    condition: (_arg, { getState }) => {
+      const { isFetchingEligibility } = (getState() as RootState).events;
+      return !isFetchingEligibility;
+    },
+  }
+);
+
+// Fetch approval flows for events (admin only)
+export const fetchApprovalFlows = createAsyncThunk<EventApprovalFlow[], string | undefined>(
+  'events/fetchApprovalFlows',
+  async (eventId) => {
+    const res = await eventsApiNamed.getApprovalFlows(eventId);
+    return res.flows;
   }
 );
 
@@ -157,8 +219,17 @@ const eventsSlice = createSlice({
   initialState,
   reducers: {
     clearError: (state) => { state.error = undefined; },
-    resetPagination: (state) => { state.pagination = { page: 1, total: 0 }; },
+    resetPagination: (state) => { state.pagination = { page: 1, total: 0, limit: 20 }; },
     clearCurrent: (state) => { state.current = null; },
+    setFilters: (state, action: PayloadAction<Partial<EventsState['filters']>>) => {
+      state.filters = { ...state.filters, ...action.payload };
+    },
+    clearFilters: (state) => {
+      state.filters = {};
+    },
+    updateApprovalFlow: (state, action: PayloadAction<EventApprovalFlow>) => {
+      state.approvalFlows[action.payload.eventId] = action.payload;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -171,7 +242,7 @@ const eventsSlice = createSlice({
         state.loading = false;
         state.isFetchingList = false;
         state.items = action.payload.events;
-        state.pagination = { page: action.payload.page, total: action.payload.total };
+        state.pagination = { page: action.payload.page, total: action.payload.total, limit: action.payload.limit };
       })
       .addCase(fetchEvents.rejected, (state, action) => {
         state.loading = false; state.error = action.error.message || 'Failed to load events';
@@ -186,10 +257,29 @@ const eventsSlice = createSlice({
       .addCase(fetchMyEvents.fulfilled, (state, action: PayloadAction<Event[]>) => {
         state.loading = false; state.mine = action.payload;
         state.isFetchingMine = false;
+        // Update registered event IDs from the events
+        state.myRegisteredEventIds = action.payload
+          .filter(event => event.isRegistered)
+          .map(event => event.id);
       })
       .addCase(fetchMyEvents.rejected, (state, action) => {
         state.loading = false; state.error = action.error.message || 'Failed to load my events';
         state.isFetchingMine = false;
+      })
+
+      // my registrations
+      .addCase(fetchMyRegistrations.pending, (state) => {
+        state.isFetchingRegistrations = true;
+        state.error = undefined;
+      })
+      .addCase(fetchMyRegistrations.fulfilled, (state, action: PayloadAction<EventRegistration[]>) => {
+        state.myRegistrations = action.payload;
+        state.myRegisteredEventIds = action.payload.map(reg => reg.eventId);
+        state.isFetchingRegistrations = false;
+      })
+      .addCase(fetchMyRegistrations.rejected, (state, action) => {
+        state.isFetchingRegistrations = false;
+        state.error = action.error.message || 'Failed to load registrations';
       })
 
       // get by id
@@ -212,16 +302,15 @@ const eventsSlice = createSlice({
         state.loading = false; state.error = action.error.message || 'Failed to create event';
       })
 
-      // update
-      .addCase(updateEvent.pending, (state) => { state.loading = true; state.error = undefined; })
+      // update (optimistic updates without loading state)
+      .addCase(updateEvent.pending, (state) => { state.error = undefined; })
       .addCase(updateEvent.fulfilled, (state, action: PayloadAction<Event>) => {
-        state.loading = false;
         state.items = state.items.map((e) => e.id === action.payload.id ? action.payload : e);
         state.mine = state.mine.map((e) => e.id === action.payload.id ? action.payload : e);
         if (state.current?.id === action.payload.id) state.current = action.payload;
       })
       .addCase(updateEvent.rejected, (state, action) => {
-        state.loading = false; state.error = action.error.message || 'Failed to update event';
+        state.error = action.error.message || 'Failed to update event';
       })
 
       // moderate
@@ -237,82 +326,115 @@ const eventsSlice = createSlice({
       })
 
       // register
-      .addCase(registerForEvent.pending, (state) => { state.loading = true; state.error = undefined; })
+      .addCase(registerForEvent.pending, (state) => { state.error = undefined; })
       .addCase(registerForEvent.fulfilled, (state, action: PayloadAction<EventRegistration>) => {
-        state.loading = false;
         const eventId = action.payload.eventId;
+        
+        // Add to registered events
+        if (!state.myRegisteredEventIds.includes(eventId)) {
+          state.myRegisteredEventIds.push(eventId);
+        }
+        
         const applyUpdate = (e: Event) =>
           e.id === eventId
             ? {
                 ...e,
+                registrationCount: (e.registrationCount || 0) + 1,
                 isRegistered: true,
-                registrationCount: (e.registrationCount ?? 0) + 1,
               }
             : e;
+
         state.items = state.items.map(applyUpdate);
-        state.mine = state.mine.map(applyUpdate);
         if (state.current?.id === eventId) {
           state.current = {
             ...state.current,
+            registrationCount: (state.current.registrationCount || 0) + 1,
             isRegistered: true,
-            registrationCount: (state.current.registrationCount ?? 0) + 1,
           };
         }
       })
       .addCase(registerForEvent.rejected, (state, action) => {
-        state.loading = false; state.error = action.error.message || 'Failed to register for event';
+        state.error = action.error.message || 'Failed to register for event';
       })
 
       // unregister
-      .addCase(unregisterFromEvent.pending, (state) => { state.loading = true; state.error = undefined; })
+      .addCase(unregisterFromEvent.pending, (state) => { state.error = undefined; })
       .addCase(unregisterFromEvent.fulfilled, (state, action: PayloadAction<string>) => {
-        state.loading = false;
         const eventId = action.payload;
+        
+        // Remove from registered events
+        state.myRegisteredEventIds = state.myRegisteredEventIds.filter(id => id !== eventId);
+        
         const applyUpdate = (e: Event) =>
           e.id === eventId
             ? {
                 ...e,
+                registrationCount: Math.max(0, (e.registrationCount || 0) - 1),
                 isRegistered: false,
-                registrationCount: Math.max(0, (e.registrationCount ?? 0) - 1),
               }
             : e;
+
         state.items = state.items.map(applyUpdate);
-        state.mine = state.mine.map(applyUpdate);
         if (state.current?.id === eventId) {
           state.current = {
             ...state.current,
+            registrationCount: Math.max(0, (state.current.registrationCount || 0) - 1),
             isRegistered: false,
-            registrationCount: Math.max(0, (state.current.registrationCount ?? 0) - 1),
           };
         }
       })
       .addCase(unregisterFromEvent.rejected, (state, action) => {
-        state.loading = false; state.error = action.error.message || 'Failed to unregister from event';
+        state.error = action.error.message || 'Failed to unregister from event';
       })
 
-      // delete
-      .addCase(deleteEventById.pending, (state) => { state.loading = true; state.error = undefined; })
+      // delete (optimistic updates without loading state)
+      .addCase(deleteEventById.pending, (state) => { state.error = undefined; })
       .addCase(deleteEventById.fulfilled, (state, action: PayloadAction<string>) => {
-        state.loading = false;
         const id = action.payload;
         state.items = state.items.filter((e) => e.id !== id);
         state.mine = state.mine.filter((e) => e.id !== id);
         if (state.current?.id === id) state.current = null;
       })
       .addCase(deleteEventById.rejected, (state, action) => {
-        state.loading = false; state.error = action.error.message || 'Failed to delete event';
+        state.error = action.error.message || 'Failed to delete event';
       })
 
-      // export (toggle loading only; do not store blob in state)
-      .addCase(exportEventRegistrations.pending, (state) => { state.loading = true; state.error = undefined; })
-      .addCase(exportEventRegistrations.fulfilled, (state) => { state.loading = false; })
+      // export (no loading state to avoid page re-render)
+      .addCase(exportEventRegistrations.pending, (state) => { state.error = undefined; })
+      .addCase(exportEventRegistrations.fulfilled, (state) => { /* No state changes needed */ })
       .addCase(exportEventRegistrations.rejected, (state, action) => {
-        state.loading = false; state.error = action.error.message || 'Failed to export registrations';
+        state.error = action.error.message || 'Failed to export registrations';
       })
 
       // eligibility
-      .addCase(fetchEventEligibility.fulfilled, (state, action: PayloadAction<{ canCreate: boolean; missingBadges: string[] }>) => {
+      .addCase(fetchEventEligibility.pending, (state) => {
+        state.isFetchingEligibility = true;
+        state.error = undefined;
+      })
+      .addCase(fetchEventEligibility.fulfilled, (state, action: PayloadAction<EventEligibility>) => {
         state.eligibility = action.payload;
+        state.isFetchingEligibility = false;
+      })
+      .addCase(fetchEventEligibility.rejected, (state, action) => {
+        state.isFetchingEligibility = false;
+        state.error = action.error.message || 'Failed to check eligibility';
+      })
+
+      // approval flows
+      .addCase(fetchApprovalFlows.pending, (state) => {
+        state.loading = true;
+        state.error = undefined;
+      })
+      .addCase(fetchApprovalFlows.fulfilled, (state, action: PayloadAction<EventApprovalFlow[]>) => {
+        state.loading = false;
+        // Update approval flows by eventId
+        action.payload.forEach(flow => {
+          state.approvalFlows[flow.eventId] = flow;
+        });
+      })
+      .addCase(fetchApprovalFlows.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to fetch approval flows';
       });
   },
 });
@@ -325,8 +447,14 @@ export const selectEventsLoading = (state: RootState) => state.events.loading;
 export const selectEventsError = (state: RootState) => state.events.error;
 export const selectEventsPagination = (state: RootState) => state.events.pagination;
 export const selectEventEligibility = (state: RootState) => state.events.eligibility;
+export const selectApprovalFlows = (state: RootState) => state.events.approvalFlows;
+export const selectEventFilters = (state: RootState) => state.events.filters;
+export const selectIsFetchingEligibility = (state: RootState) => state.events.isFetchingEligibility;
+export const selectMyRegisteredEvents = (state: RootState) => state.events.myRegisteredEventIds;
+export const selectMyRegistrations = (state: RootState) => state.events.myRegistrations;
+export const selectIsFetchingRegistrations = (state: RootState) => state.events.isFetchingRegistrations;
 
 // Actions
-export const { clearError, resetPagination, clearCurrent } = eventsSlice.actions;
+export const { clearError, resetPagination, clearCurrent, setFilters, clearFilters, updateApprovalFlow } = eventsSlice.actions;
 
 export default eventsSlice.reducer;

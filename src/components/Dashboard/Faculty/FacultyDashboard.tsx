@@ -27,29 +27,25 @@ export default function FacultyDashboard() {
       name: 'Active Projects',
       value: myProjects.filter((p: Project) => p.status === 'open' || p.status === 'in_progress').length,
       icon: BookOpen,
-      color: 'bg-blue-500',
-      change: '+2 this month'
+      color: 'bg-blue-500'
     },
     {
       name: 'Total Collaborators',
       value: myProjects.reduce((sum: number, p: Project) => sum + p.currentStudents, 0),
       icon: Users,
-      color: 'bg-green-500',
-      change: '+5 new students'
+      color: 'bg-green-500'
     },
     {
       name: 'Pending Applications',
       value: pendingApplications.length,
       icon: Clock,
-      color: 'bg-yellow-500',
-      change: 'Needs review'
+      color: 'bg-yellow-500'
     },
     {
-      name: 'Success Rate',
-      value: '92%',
+      name: 'Total Projects',
+      value: myProjects.length,
       icon: Award,
-      color: 'bg-purple-500',
-      change: '+3% improvement'
+      color: 'bg-purple-500'
     }
   ];
 
@@ -85,9 +81,6 @@ export default function FacultyDashboard() {
               <div>
                 <p className="text-sm font-medium text-gray-600">{stat.name}</p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">{stat.value}</p>
-                <div className="flex items-center mt-2">
-                  <span className="text-green-600 text-sm font-medium">{stat.change}</span>
-                </div>
               </div>
               <div className={`${stat.color} p-3 rounded-lg`}>
                 <stat.icon className="w-6 h-6 text-white" />

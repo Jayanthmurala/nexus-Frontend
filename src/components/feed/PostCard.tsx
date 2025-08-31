@@ -9,8 +9,13 @@ import {
   Award,
   Trophy,
   Star,
-  Clock
+  Clock,
+  Edit,
+  Trash2,
+  Globe,
+  Users
 } from 'lucide-react';
+import { useState } from 'react';
 
 interface Post {
   id: string;
@@ -19,6 +24,7 @@ interface Post {
   authorRole: 'student' | 'faculty' | 'admin';
   authorDepartment: string;
   content: string;
+  visibility: 'PUBLIC' | 'COLLEGE';
   type: 'text' | 'project_update' | 'achievement' | 'event' | 'collaboration' | 'badge_award';
   attachments?: Array<{
     type: 'image' | 'document' | 'link';
@@ -45,9 +51,12 @@ interface PostCardProps {
   post: Post;
   onLike: (postId: string) => void;
   onBookmark: (postId: string) => void;
+  onEdit?: (postId: string) => void;
+  onDelete?: (postId: string) => void;
+  currentUserId?: string;
 }
 
-export default function PostCard({ post, onLike, onBookmark }: PostCardProps) {
+export default function PostCard({ post, onLike, onBookmark, onEdit, onDelete, currentUserId }: PostCardProps) {
   const getPostTypeColor = (type: string) => {
     switch (type) {
       case 'achievement': return 'bg-green-100 text-green-800';
@@ -109,9 +118,25 @@ export default function PostCard({ post, onLike, onBookmark }: PostCardProps) {
             </div>
           </div>
         </div>
-        <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors" aria-label="More actions">
-          <MoreHorizontal className="w-5 h-5 text-gray-400" />
-        </button>
+        <div className="flex items-center space-x-2">
+          {/* Visibility indicator */}
+          <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs ${
+            post.visibility === 'PUBLIC' 
+              ? 'bg-green-50 text-green-600' 
+              : 'bg-blue-50 text-blue-600'
+          }`}>
+            {post.visibility === 'PUBLIC' ? <Globe className="w-3 h-3" /> : <Users className="w-3 h-3" />}
+            <span>{post.visibility === 'PUBLIC' ? 'Public' : 'College'}</span>
+          </div>
+          
+          {/* More actions menu */}
+          {currentUserId === post.authorId && (
+            <PostActionsMenu 
+              onEdit={() => onEdit?.(post.id)}
+              onDelete={() => onDelete?.(post.id)}
+            />
+          )}
+        </div>
       </div>
 
       {/* Badge Announcement Special Layout */}
@@ -205,6 +230,48 @@ export default function PostCard({ post, onLike, onBookmark }: PostCardProps) {
           <Bookmark className={`w-5 h-5 ${post.isBookmarked ? 'fill-current' : ''}`} />
         </button>
       </div>
+    </div>
+  );
+}
+
+// Post actions menu component
+function PostActionsMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        className="p-2 hover:bg-gray-100 rounded-lg transition-colors" 
+        aria-label="More actions"
+      >
+        <MoreHorizontal className="w-5 h-5 text-gray-400" />
+      </button>
+      
+      {isOpen && (
+        <>
+          <div 
+            className="fixed inset-0 z-10" 
+            onClick={() => setIsOpen(false)}
+          />
+          <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
+            <button
+              onClick={() => { onEdit(); setIsOpen(false); }}
+              className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
+            >
+              <Edit className="w-4 h-4" />
+              <span>Edit post</span>
+            </button>
+            <button
+              onClick={() => { onDelete(); setIsOpen(false); }}
+              className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Delete post</span>
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

@@ -1,15 +1,15 @@
 'use client';
 
 import React from 'react';
-import RoleGuard from '@/components/common/RoleGuard';
+import RoleGuard from '../../components/common/RoleGuard';
 import { Users, Search, Filter, Download, Award } from 'lucide-react';
-import type { UserRole } from '@/contexts/AuthContext';
-import { useAuth } from '@/contexts/AuthContext';
-import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { fetchMyProjects, selectProjects, selectProjectsLoading } from '@/store/slices/projectsSlice';
-import { fetchProjectApplications } from '@/store/slices/applicationsSlice';
-import { fetchStudentProfileById } from '@/store/slices/studentProfilesSlice';
-import AwardBadge from '@/components/Dashboard/Faculty/AwardBadge';
+import type { UserRole } from '../../contexts/AuthContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { fetchMyProjects, selectProjects, selectProjectsLoading } from '../../store/slices/projectsSlice';
+import { fetchProjectApplications } from '../../store/slices/applicationsSlice';
+import { fetchProfile } from '../../store/slices/profileSlice';
+import AwardBadge from '../../components/Dashboard/Faculty/AwardBadge';
 import toast from 'react-hot-toast';
 
 type AppStatus = 'ACCEPTED' | 'PENDING' | 'REJECTED';
@@ -32,8 +32,8 @@ export default function StudentsPage() {
   const projectsLoading = useAppSelector(selectProjectsLoading);
   const applicationsByProject = useAppSelector((s) => s.applications.byProjectId as Record<string, any[]>);
   const applicationsLoadingByProject = useAppSelector((s) => s.applications.loadingByProjectId as Record<string, boolean>);
-  const profilesById = useAppSelector((s) => s.studentProfiles.byId as Record<string, any>);
-  const profilesLoadingById = useAppSelector((s) => s.studentProfiles.loading as Record<string, boolean>);
+  const profilesById = useAppSelector((s) => ({} as Record<string, any>)); // Mock for now - profile slice doesn't support multiple profiles
+  const profilesLoadingById = useAppSelector((s) => ({} as Record<string, boolean>)); // Mock for now
 
   const [openAward, setOpenAward] = React.useState<{ studentId: string; studentName: string; projectId?: string } | null>(null);
 
@@ -112,7 +112,7 @@ export default function StudentsPage() {
       const prof = profilesById?.[s.id];
       const loading = profilesLoadingById?.[s.id];
       if (typeof prof === 'undefined' && !loading) {
-        dispatch(fetchStudentProfileById(s.id));
+        dispatch(fetchProfile(s.id));
       }
     });
   }, [dispatch, studentsList, profilesById, profilesLoadingById]);

@@ -5,6 +5,9 @@ This document explains how the Next.js frontend integrates with the Nexus auth-s
 - Uses NextAuth for session handling with a Credentials provider to store backend-issued access tokens in the NextAuth JWT.
 - Uses Axios clients with interceptors to attach the bearer token and auto-refresh on 401 via the backend HttpOnly refresh cookie.
 - No localStorage is used for tokens (security-first).
+- Supports comprehensive role-based access control with RoleGuard components.
+- Integrates with profile service for user data management and badge system eligibility.
+- Includes OAuth bridge for Google/GitHub authentication with backend token exchange.
 
 ## TL;DR Quick Start
 1) Create `nexus/.env.local` with NextAuth + service URLs (see Env Vars below).
@@ -53,12 +56,15 @@ export default function LoginForm() {
 - Axios client to profile-service: `src/lib/httpProfile.ts`
 - Axios client to projects-service: `src/lib/httpProjects.ts`
 - Axios client to event-service: `src/lib/httpEvents.ts`
+- Axios client to network-service: `src/lib/httpNetwork.ts`
 - Profile API wrapper: `src/lib/profileApi.ts`
 - Projects API wrapper: `src/lib/projectsApi.ts`
 - Events API wrapper: `src/lib/eventsApi.ts`
+- Network API wrapper: `src/lib/networkApi.ts`
 - Refresh helper: `src/lib/authRefresh.ts`
 - Me helper: `src/lib/me.ts`
 - Auth context: `src/contexts/AuthContext.tsx`
+- Role guard component: `src/components/common/RoleGuard.tsx`
 - UI flows:
   - Login: `src/app/login/page.tsx`
   - OAuth exchange bridge: `src/app/oauth/bridge/page.tsx`
@@ -91,6 +97,7 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:4001          # auth-service
 NEXT_PUBLIC_PROFILE_API_BASE_URL=http://localhost:4002  # profile-service
 NEXT_PUBLIC_PROJECTS_API_BASE_URL=http://localhost:4003 # projects-service
 NEXT_PUBLIC_EVENTS_API_BASE_URL=http://localhost:4004   # event-service
+NEXT_PUBLIC_NETWORK_API_BASE_URL=http://localhost:4005  # network-service
 ```
 
 Notes:
@@ -209,13 +216,27 @@ const url = URL.createObjectURL(blob); const a = document.createElement('a');
 a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
 ```
 
+### Network-service
+```ts
+import networkApi from '@/lib/networkApi';
+// Social feed
+const { items } = await networkApi.getFeed({ scope: 'college', limit: 20 });
+// Follow/unfollow
+await networkApi.followUser(userId);
+await networkApi.unfollowUser(userId);
+// Posts
+const { post } = await networkApi.createPost({ content: 'Hello world!', visibility: 'PUBLIC' });
+await networkApi.likePost(postId);
+```
+
 ## AuthContext API (recommended for UI)
 `src/contexts/AuthContext.tsx` wraps NextAuth and exposes a simple API:
-- `user: { id, name, email, role, ... } | null`
+- `user: { id, name, email, role, collegeMemberId, department, year, ... } | null`
 - `login(email, password): Promise<boolean>`
-- `register({ email, password, name, ... }): Promise<boolean>`
+- `register({ email, password, name, collegeId, department, year, ... }): Promise<boolean>`
 - `logout(): Promise<void>`
 - `updateProfile(updates: Partial<User>): void` (persists supported fields via Redux thunks to profile-service)
+- `loading: boolean` (indicates auth state resolution in progress)
 
 Role/user resolution:
 - On session changes, the context resolves roles from `session.user.roles` if present.
@@ -235,9 +256,22 @@ export default function Example() {
 
 
 ### Role-based UI guards
-Use `useAuth()` to gate client-side UI by role.
+Use `RoleGuard` component for comprehensive role-based access control.
 
-Example admin-only section:
+Example with RoleGuard:
+```tsx
+import { RoleGuard } from '@/components/common/RoleGuard';
+
+export default function AdminPage() {
+  return (
+    <RoleGuard allowedRoles={['head_admin', 'dept_admin']}>
+      <AdminDashboard />
+    </RoleGuard>
+  );
+}
+```
+
+Custom role checking with useAuth:
 ```tsx
 'use client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -288,9 +322,12 @@ These endpoints are consumed by the frontend as implemented:
 - `POST /v1/auth/refresh` (HttpOnly cookie)
 - `POST /v1/auth/logout`
 - `GET  /v1/auth/me`
+- `PUT  /v1/auth/users/:userId` (for profile updates)
 - `POST /v1/auth/oauth/exchange`
 - `POST /v1/auth/verify-email`
 - `POST /v1/auth/reset-password`
+- `POST /v1/auth/forgot-password`
+- `POST /v1/auth/resend-verification`
 
 
 ## Security & CORS

@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { departments, durationOptions, projectTypeOptions } from '@/constants/projectOptions'
+import { departments as departmentOptions, durationOptions, projectTypeOptions } from '@/constants/projectOptions'
 
 const TITLE_MAX = 100
 const DESC_MAX = 1000
@@ -77,7 +77,7 @@ export default function EditProjectDialog({ project, open, onOpenChange, onSave 
   const [description, setDescription] = useState('')
   const [maxStudents, setMaxStudents] = useState<number>(2)
   const [deadline, setDeadline] = useState<string>('')
-  const [department, setDepartment] = useState<string>('')
+  const [departments, setDepartments] = useState<string[]>([])
   const [duration, setDuration] = useState<string>('')
   const [projectType, setProjectType] = useState<(typeof projectTypeOptions)[number]['value']>('project')
   const [skills, setSkills] = useState<string[]>([''])
@@ -94,7 +94,7 @@ export default function EditProjectDialog({ project, open, onOpenChange, onSave 
       setDescription(project.description)
       setMaxStudents(project.maxStudents)
       setDeadline(project.deadline ? new Date(project.deadline).toISOString().slice(0, 10) : '')
-      setDepartment(project.visibleToAllDepts ? 'All Departments' : (project.departments?.[0] || ''))
+      setDepartments(project.visibleToAllDepts ? [] : (project.departments || []))
       setDuration(project.projectDuration || '')
       setProjectType(project.projectType ? project.projectType.toLowerCase().replace(/_/g, '_') as (typeof projectTypeOptions)[number]['value'] : 'project')
       setSkills(project.skills && project.skills.length ? project.skills : [''])
@@ -134,7 +134,7 @@ export default function EditProjectDialog({ project, open, onOpenChange, onSave 
       description !== project.description ||
       maxStudents !== initialMax ||
       projectType.toUpperCase() !== project.projectType ||
-      department !== (project.visibleToAllDepts ? 'All Departments' : (project.departments?.[0] || '')) ||
+      JSON.stringify([...departments].sort()) !== JSON.stringify([...(project.visibleToAllDepts ? [] : (project.departments || []))].sort()) ||
       duration !== (project.projectDuration || '') ||
       deadline !== projDeadline ||
       eqArr(skills, project.skills || []) ||
@@ -143,7 +143,7 @@ export default function EditProjectDialog({ project, open, onOpenChange, onSave 
       eqArr(tags, project.tags || []) ||
       progressStatus !== project.progressStatus
     )
-  }, [project, title, description, maxStudents, department, duration, deadline, skills, requirements, outcomes, tags, projectType, progressStatus])
+  }, [project, title, description, maxStudents, departments, duration, deadline, skills, requirements, outcomes, tags, projectType, progressStatus])
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen && isDirty) {
@@ -160,7 +160,7 @@ export default function EditProjectDialog({ project, open, onOpenChange, onSave 
     if (!description.trim()) newErrors.description = 'Description is required'
     if (!projectType) newErrors.projectType = 'Project type is required'
     if (maxStudents < 1) newErrors.maxStudents = 'At least 1 student required'
-    if (!department) newErrors.department = 'Department is required'
+    if (departments.length === 0) newErrors.departments = 'At least one department is required'
     if (!duration) newErrors.duration = 'Duration is required'
     if (skills.every((s) => !s.trim())) newErrors.skills = 'At least one skill is required'
     if (requirements.every((r) => !r.trim())) newErrors.requirements = 'At least one requirement is required'
@@ -170,7 +170,7 @@ export default function EditProjectDialog({ project, open, onOpenChange, onSave 
 
     setIsSaving(true)
     try {
-      const isAllDepts = department === 'All Departments'
+      const isAllDepts = departments.length === 0
       const payload: UpdateProjectRequest = {
         title: title.trim(),
         description: description.trim(),
@@ -179,8 +179,8 @@ export default function EditProjectDialog({ project, open, onOpenChange, onSave 
         projectType: projectType.toUpperCase() as ProjectType,
         // For updates, send explicit boolean to allow toggling from true -> false
         visibleToAllDepts: isAllDepts ? true : false,
-        // If visible to all, clear departments; otherwise set the single selected dept
-        departments: isAllDepts ? [] : (department ? [department] : []),
+        // If visible to all, clear departments; otherwise set the selected departments
+        departments: isAllDepts ? [] : departments,
         maxStudents,
         deadline: deadline ? new Date(deadline).toISOString() : undefined,
         tags: tags.filter((t) => t.trim()),
@@ -277,18 +277,62 @@ export default function EditProjectDialog({ project, open, onOpenChange, onSave 
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label className="mb-1 block">Department</Label>
-              <Select value={department} onValueChange={setDepartment}>
-                <SelectTrigger className={errors.department ? 'border-destructive focus:ring-destructive' : ''}>
-                  <SelectValue placeholder="Select Department" />
-                </SelectTrigger>
-                <SelectContent>
-                  {departments.map((dept) => (
-                    <SelectItem key={dept} value={dept}>{dept}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.department && <p className="text-red-600 text-sm mt-1">{errors.department}</p>}
+              <Label className="mb-1 block">Target Departments</Label>
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-2 min-h-[40px] p-3 border border-gray-300 rounded-md bg-white">
+                  {departments && departments.length > 0 ? (
+                    departments.map((dept, index) => (
+                      <span
+                        key={index}
+                        className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                      >
+                        {dept}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newDepts = departments.filter((_, i) => i !== index);
+                            setDepartments(newDepts);
+                          }}
+                          className="ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full hover:bg-blue-200"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-gray-500 text-sm">All Departments (visible to all students)</span>
+                  )}
+                </div>
+                <Select
+                  value=""
+                  onValueChange={(value) => {
+                    if (value === 'All Departments') {
+                      setDepartments([]);
+                    } else {
+                      if (!departments.includes(value)) {
+                        setDepartments([...departments, value]);
+                      }
+                    }
+                  }}
+                >
+                  <SelectTrigger className={errors.departments ? 'border-destructive focus:ring-destructive' : ''}>
+                    <SelectValue placeholder="Add department..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="All Departments">All Departments</SelectItem>
+                    {departmentOptions.filter(dept => dept !== 'All Departments').map((dept) => (
+                      <SelectItem 
+                        key={dept} 
+                        value={dept}
+                        disabled={departments.includes(dept)}
+                      >
+                        {dept} {departments.includes(dept) && '✓'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {errors.departments && <p className="text-red-600 text-sm mt-1">{errors.departments}</p>}
             </div>
             <div>
               <Label className="mb-1 block">Duration</Label>

@@ -15,10 +15,12 @@ const httpProfile = axios.create({
 // Attach Authorization header from NextAuth session if available
 httpProfile.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
   try {
+    // Prefer the most recent in-memory token first
     const memToken = getLatestAccessToken();
     if (memToken && !(config.headers as any)?.Authorization) {
       config.headers = config.headers || {};
       (config.headers as any).Authorization = `Bearer ${memToken}`;
+      console.log('httpProfile: Using in-memory token for request to:', config.url);
       return config;
     }
 
@@ -27,24 +29,37 @@ httpProfile.interceptors.request.use(async (config: InternalAxiosRequestConfig) 
     if (accessToken && !(config.headers as any)?.Authorization) {
       config.headers = config.headers || {};
       (config.headers as any).Authorization = `Bearer ${accessToken}`;
+      console.log('httpProfile: Using session token for request to:', config.url);
+    } else if (!accessToken) {
+      console.warn('httpProfile: No access token available for request to:', config.url);
     }
-  } catch {}
+  } catch (error) {
+    console.error('httpProfile: Error setting auth header:', error);
+  }
   return config;
 });
 
-// Handle 401 by attempting refresh against auth-service and retrying once
+// Handle 401 by attempting refresh, updating NextAuth session, and retrying once
 httpProfile.interceptors.response.use(
-  (res: AxiosResponse) => res,
+  (res: AxiosResponse) => {
+    console.log('httpProfile: Successful response from:', res.config.url, 'Status:', res.status);
+    return res;
+  },
   async (error: AxiosError) => {
+    console.error('httpProfile: Request failed:', error.config?.url, 'Status:', error.response?.status, 'Error:', error.message);
     const original = error.config as any;
     if (error?.response?.status === 401 && !original?._retry) {
+      console.log('httpProfile: Attempting token refresh for 401 error');
       original._retry = true;
       const refreshed = await refreshToken(AUTH_API_BASE);
       if (refreshed && refreshed.accessToken) {
         original.headers = original.headers || {};
         original.headers.Authorization = `Bearer ${refreshed.accessToken}`;
+        console.log('httpProfile: Retrying request with refreshed token');
         return httpProfile(original);
       }
+      // Refresh failed: sign out to break potential loops
+      console.warn('httpProfile: Token refresh failed, signing out');
       try { await signOut({ redirect: false }); } catch {}
     }
     return Promise.reject(error);

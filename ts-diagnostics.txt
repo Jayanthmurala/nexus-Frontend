@@ -1,0 +1,1 @@
+[91merror[0m[90m TS5074: [0mOption '--incremental' can only be specified using tsconfig, emitting to single file or when option '--tsBuildInfoFile' is specified.

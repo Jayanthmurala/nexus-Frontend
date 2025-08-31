@@ -6,11 +6,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { selectBadgeDefinitions } from '@/store/slices/badgesSlice';
 import { fetchBadgeDefinitions, awardBadge as awardBadgeThunk } from '@/store/slices/badgesSlice';
-import type { BadgeDefinition } from '@/lib/profileApi';
+
 import toast from 'react-hot-toast';
 import { fetchMyProjects, selectProjects, selectProjectsLoading } from '@/store/slices/projectsSlice';
 import { fetchProjectApplications } from '@/store/slices/applicationsSlice';
-import { fetchStudentProfileById } from '@/store/slices/studentProfilesSlice';
+import { BadgeDefinition } from '@/lib/profileApi';
 
 interface AwardBadgeProps {
   onClose: () => void;
@@ -23,6 +23,7 @@ interface AwardBadgeProps {
    id: string;
    name: string;
    department: string;
+   collegeMemberId?: string;
    projects: { id: string; title: string }[];
  };
 
@@ -41,8 +42,9 @@ export default function AwardBadge({ onClose, studentId, studentName, projectId 
   const projectsLoading = useAppSelector(selectProjectsLoading);
   const applicationsByProject = useAppSelector((state) => state.applications.byProjectId as Record<string, any[]>);
   const applicationsLoadingByProject = useAppSelector((state) => state.applications.loadingByProjectId as Record<string, boolean>);
-  const profilesById = useAppSelector((state) => state.studentProfiles.byId as Record<string, any>);
-  const profilesLoadingById = useAppSelector((state) => state.studentProfiles.loading as Record<string, boolean>);
+  // Profile functionality removed - using network directory for user data
+  const directoryUsers = useAppSelector((state) => state.network.directory.items || []);
+  const directoryLoading = useAppSelector((state) => state.network.directory.loading);
   const [studentSearch, setStudentSearch] = useState<string>('');
   const [projectFilter, setProjectFilter] = useState<string>(projectId || 'all');
 
@@ -92,6 +94,7 @@ export default function AwardBadge({ onClose, studentId, studentName, projectId 
         id: app.studentId,
         name: app.studentName,
         department: app.studentDepartment,
+        collegeMemberId: app.studentCollegeMemberId,
         projects: [],
       };
       if (proj && !existing.projects.some((pr) => pr.id === proj.id)) {
@@ -102,16 +105,8 @@ export default function AwardBadge({ onClose, studentId, studentName, projectId 
     return Array.from(map.values());
   }, [acceptedApplications, myProjects]);
 
-  // Preload student profiles to show College Member ID
-  React.useEffect(() => {
-    studentsList.forEach((s) => {
-      const prof = profilesById?.[s.id];
-      const loading = profilesLoadingById?.[s.id];
-      if (typeof prof === 'undefined' && !loading) {
-        dispatch(fetchStudentProfileById(s.id));
-      }
-    });
-  }, [dispatch, studentsList, profilesById, profilesLoadingById]);
+  // Profile functionality removed - no preloading needed
+  // Students data comes from directory users
 
   const filteredStudents = React.useMemo(() => {
     const base = projectFilter && projectFilter !== 'all'
@@ -120,10 +115,10 @@ export default function AwardBadge({ onClose, studentId, studentName, projectId 
     const q = studentSearch.trim().toLowerCase();
     if (!q) return base;
     return base.filter((s) => {
-      const cmid = (profilesById?.[s.id]?.collegeMemberId || '').toLowerCase();
-      return s.name.toLowerCase().includes(q) || cmid.includes(q);
+      // Profile functionality removed - search by name only
+      return s.name.toLowerCase().includes(q);
     });
-  }, [studentsList, projectFilter, studentSearch, profilesById]);
+  }, [studentsList, projectFilter, studentSearch]);
 
   const studentsLoading = React.useMemo(() => {
     if (projectsLoading) return true;
@@ -135,15 +130,18 @@ export default function AwardBadge({ onClose, studentId, studentName, projectId 
     const rows = filteredStudents;
     const header = ['Name', 'User ID', 'College Member ID', 'Department', 'Projects Count', 'Projects'];
     const lines = [header.join(',')];
-    rows.forEach((s) => {
-      const profile = profilesById?.[s.id];
-      const cmid = profile?.collegeMemberId || '';
-      const projNames = s.projects.map((pr) => pr.title).join('; ');
-      const values = [s.name, s.id, cmid, s.department || '', String(s.projects.length), projNames];
-      const escaped = values.map((v) => `"${String(v).replace(/"/g, '""')}"`);
-      lines.push(escaped.join(','));
+    const csvData = rows.map((s) => {
+      // Profile functionality removed - basic data only
+      return [
+        s.name,
+        s.id,
+        'N/A', // collegeMemberId not available
+        'N/A', // department not available
+        s.projects.length,
+        s.projects.map((pr) => pr.title).join('; ')
+      ];
     });
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([csvData.map((row) => row.join(',')).join('\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -151,9 +149,9 @@ export default function AwardBadge({ onClose, studentId, studentName, projectId 
     a.download = `students_export_${dateStr}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [filteredStudents, profilesById]);
+  }, [filteredStudents]);
 
-  const filteredBadges = badges.filter((badge: BadgeDefinition) =>
+  const filteredBadges = badges.filter((badge) =>
     badge.name.toLowerCase().includes(badgeSearchTerm.toLowerCase()) ||
     badge.description.toLowerCase().includes(badgeSearchTerm.toLowerCase())
   );
@@ -177,10 +175,11 @@ export default function AwardBadge({ onClose, studentId, studentName, projectId 
       const effectiveProjectId = projectId || (projectFilter && projectFilter !== 'all' ? projectFilter : undefined);
       await dispatch(
         awardBadgeThunk({
-          studentId: selectedStudent,
-          badgeId: selectedBadge,
+          badgeDefinitionId: selectedBadge,
+          userId: selectedStudent,
           reason: reason.trim(),
           projectId: effectiveProjectId,
+          awardedByName: user?.displayName || user?.name,
         })
       ).unwrap();
       toast.success(`Badge awarded to ${selectedStudentName || 'student'}`);
@@ -259,7 +258,6 @@ export default function AwardBadge({ onClose, studentId, studentName, projectId 
                     <div className="p-3 text-sm text-gray-500">No students found</div>
                   ) : (
                     filteredStudents.map((s) => {
-                      const profile = profilesById?.[s.id];
                       const selected = selectedStudent === s.id;
                       return (
                         <button
@@ -271,7 +269,7 @@ export default function AwardBadge({ onClose, studentId, studentName, projectId 
                           <div className="min-w-0">
                             <div className="font-medium text-gray-900 truncate">{s.name}</div>
                             <div className="text-xs text-gray-600">
-                              Dept: {s.department || '—'}{profile?.collegeMemberId ? ` • ID: ${profile.collegeMemberId}` : ''}
+                              ID: {s.collegeMemberId || s.id} • Dept: {s.department || '—'}
                             </div>
                             <div className="mt-1 flex flex-wrap gap-1">
                               {s.projects.slice(0, 3).map((pr: any) => (

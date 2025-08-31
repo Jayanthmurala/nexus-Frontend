@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import type { User } from '@/contexts/AuthContext';
 import { usePathname } from 'next/navigation';
@@ -12,6 +12,8 @@ import { fetchEvents as fetchEventsThunk, fetchMyEvents as fetchMyEventsThunk, c
 import type { Event as ApiEvent, CreateEventRequest as CreateEventReq, EventMode as ApiEventMode, EventType as ApiEventType } from '@/lib/eventsApi';
 
 export interface Project {
+  departments: any;
+  projectDuration: ReactNode;
   id: string;
   title: string;
   description: string;
@@ -245,6 +247,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     myApplicationStatus: reduxProject.myApplicationStatus
       ? (reduxProject.myApplicationStatus.toLowerCase() as 'pending' | 'accepted' | 'rejected')
       : null,
+    departments: undefined,
+    projectDuration: undefined
   });
 
   // Helpers to convert Events API -> DataContext Event model
@@ -415,255 +419,25 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     // Fetching of projects is handled in the role-based effect above
     // Events are fetched via Redux; no demo seeding
 
-    // Initialize demo users for network
-    const demoUsers: User[] = [
-      {
-        id: '1',
-        name: 'Alex Chen',
-        email: 'alex@student.edu',
-        role: 'student',
-        department: 'Computer Science',
-        year: 3,
-        skills: ['React', 'Python', 'Machine Learning'],
-        bio: 'Passionate about AI and web development',
-        avatar:
-          'https://images.pexels.com/photos/2381069/pexels-photo-2381069.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
-        createdAt: new Date('2024-01-15'),
-      },
-      {
-        id: '2',
-        name: 'Dr. Sarah Wilson',
-        email: 'sarah@faculty.edu',
-        role: 'faculty',
-        department: 'Computer Science',
-        skills: ['Research', 'AI', 'Data Science'],
-        bio: 'Professor specializing in artificial intelligence and machine learning',
-        avatar:
-          'https://images.pexels.com/photos/3184291/pexels-photo-3184291.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
-        createdAt: new Date('2020-08-10'),
-      },
-      {
-        id: '3',
-        name: 'Prof. Michael Johnson',
-        email: 'michael@admin.edu',
-        role: 'dept_admin',
-        department: 'Computer Science',
-        bio: 'Head of Computer Science Department',
-        avatar:
-          'https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
-        createdAt: new Date('2018-05-20'),
-      },
-      {
-        id: '4',
-        name: 'Lisa Rodriguez',
-        email: 'lisa@placements.edu',
-        role: 'placements_admin',
-        department: 'Administration',
-        bio: 'Head of Placements and Career Services',
-        avatar:
-          'https://images.pexels.com/photos/3184338/pexels-photo-3184338.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
-        createdAt: new Date('2019-03-12'),
-      },
-      {
-        id: '5',
-        name: 'Dr. Robert Thompson',
-        email: 'robert@admin.edu',
-        role: 'head_admin',
-        bio: 'Dean of Engineering',
-        avatar:
-          'https://images.pexels.com/photos/2182970/pexels-photo-2182970.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
-        createdAt: new Date('2015-09-01'),
-      },
-      {
-        id: '6',
-        name: 'Priya Sharma',
-        email: 'priya@student.edu',
-        role: 'student',
-        department: 'Electronics',
-        year: 2,
-        skills: ['VLSI', 'Embedded C', 'Verilog'],
-        bio: 'Electronics enthusiast exploring hardware-software co-design',
-        avatar: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
-        createdAt: new Date('2024-02-20'),
-      },
-      {
-        id: '7',
-        name: 'Daniel Park',
-        email: 'daniel@student.edu',
-        role: 'student',
-        department: 'Mechanical Engineering',
-        year: 4,
-        skills: ['CAD', '3D Printing', 'Robotics'],
-        bio: 'Building robots and learning control systems',
-        avatar: 'https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
-        createdAt: new Date('2023-09-01'),
-      },
-      {
-        id: '8',
-        name: 'Maria Garcia',
-        email: 'maria@student.edu',
-        role: 'student',
-        department: 'Information Technology',
-        year: 1,
-        skills: ['JavaScript', 'UI/UX', 'Node.js'],
-        bio: 'First-year student diving into full-stack development',
-        avatar: 'https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
-        createdAt: new Date('2024-07-10'),
-      },
-    ];
-    setUsers(demoUsers);
+    // Users will be fetched from backend APIs when needed
+    setUsers([]);
 
-    // Load student showcase projects (or seed with sample if none)
-    try {
-      const savedShowcase = localStorage.getItem('nexus_student_showcase');
-      if (savedShowcase) {
-        const parsed: any[] = JSON.parse(savedShowcase);
-        const normalized: StudentShowcaseProject[] = parsed.map((p) => ({
-          ...p,
-          createdAt: new Date(p.createdAt),
-        }));
-        setStudentShowcaseProjects(normalized);
-      } else {
-        const sampleShowcase: StudentShowcaseProject[] = [
-          {
-            id: 'ss1',
-            studentId: '1',
-            title: 'Smart Campus Navigator',
-            description:
-              'A PWA to help students navigate campus resources with real-time occupancy data.',
-            tech: ['React', 'TypeScript', 'PWA'],
-            link: 'https://example.com/navigator',
-            repo: 'https://github.com/example/navigator',
-            image: 'https://picsum.photos/seed/nav/400/250',
-            createdAt: new Date('2024-03-01'),
-          },
-          {
-            id: 'ss2',
-            studentId: '6',
-            title: 'FPGA-Based Image Filter',
-            description: 'Real-time edge detection on FPGA using Verilog.',
-            tech: ['Verilog', 'FPGA'],
-            image: 'https://picsum.photos/seed/fpga/400/250',
-            createdAt: new Date('2024-04-15'),
-          },
-          {
-            id: 'ss3',
-            studentId: '7',
-            title: 'Robotic Arm Prototype',
-            description: 'Low-cost robotic arm built with 3D printed parts and Arduino.',
-            tech: ['Arduino', '3D Printing'],
-            image: 'https://picsum.photos/seed/arm/400/250',
-            createdAt: new Date('2024-02-10'),
-          },
-        ];
-        setStudentShowcaseProjects(sampleShowcase);
-        localStorage.setItem('nexus_student_showcase', JSON.stringify(sampleShowcase));
-      }
-    } catch {
-      setStudentShowcaseProjects([]);
-    }
+    // Student showcase projects will be fetched from backend API when needed
+    setStudentShowcaseProjects([]);
 
-    // Load placements data (companies, jobs, drives)
-    try {
-      const savedCompanies = localStorage.getItem('nexus_companies');
-      if (savedCompanies) {
-        const parsed: any[] = JSON.parse(savedCompanies);
-        const normalized = parsed.map((c) => ({ ...c, createdAt: new Date(c.createdAt) }));
-        setCompanies(normalized);
-      } else {
-        setCompanies(sampleCompanies);
-      }
-    } catch {
-      setCompanies(sampleCompanies);
-    }
-
-    try {
-      const savedJobs = localStorage.getItem('nexus_jobs');
-      if (savedJobs) {
-        const parsed: any[] = JSON.parse(savedJobs);
-        const normalized = parsed.map((j) => ({
-          ...j,
-          postedAt: new Date(j.postedAt),
-          applyBy: j.applyBy ? new Date(j.applyBy) : undefined,
-        }));
-        setJobs(normalized);
-      } else {
-        setJobs(sampleJobs);
-      }
-    } catch {
-      setJobs(sampleJobs);
-    }
-
-    try {
-      const savedDrives = localStorage.getItem('nexus_drives');
-      if (savedDrives) {
-        const parsed: any[] = JSON.parse(savedDrives);
-        const normalized = parsed.map((d) => ({
-          ...d,
-          date: new Date(d.date),
-        }));
-        setDrives(normalized);
-      } else {
-        setDrives(sampleDrives);
-      }
-    } catch {
-      setDrives(sampleDrives);
-    }
+    // Placements data (companies, jobs, drives) will be fetched from backend APIs when needed
+    setCompanies([]);
+    setJobs([]);
+    setDrives([]);
 
     // Applications are loaded from backend; see effect below
 
     // Event registrations now managed server-side; keep local mirror empty (derive from API if needed)
     setEventRegistrations([]);
 
-    // Seed basic follows graph
-    const sampleFollows: Follow[] = [
-      { id: 'f1', followerId: '1', followingId: '6', createdAt: new Date('2024-03-05') },
-      { id: 'f2', followerId: '1', followingId: '7', createdAt: new Date('2024-03-12') },
-      { id: 'f3', followerId: '6', followingId: '1', createdAt: new Date('2024-03-20') },
-      { id: 'f4', followerId: '7', followingId: '1', createdAt: new Date('2024-04-01') },
-    ];
-    setFollows(sampleFollows);
-
-    // Seed demo posts
-    const demoPosts: NetworkPost[] = [
-      {
-        id: 'np1',
-        authorId: '2',
-        content:
-          'Excited to share that our AI research project has been accepted at NeurIPS 2024! Looking for passionate graduate students to join our team. 🚀',
-        type: 'achievement',
-        tags: ['AI', 'Research', 'NeurIPS', 'Opportunity'],
-        likes: 24,
-        comments: 8,
-        shares: 3,
-        timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
-      },
-      {
-        id: 'np2',
-        authorId: '1',
-        content:
-          'Built a prototype for a smart timetable assistant using Next.js and vector search. Demo coming soon! ⚡',
-        type: 'project_update',
-        tags: ['Next.js', 'AI', 'Student Life'],
-        likes: 12,
-        comments: 3,
-        shares: 1,
-        timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000),
-      },
-      {
-        id: 'np3',
-        authorId: '6',
-        content:
-          'Taped out my first Verilog module on an FPGA board today. Big learning curve but so satisfying!',
-        type: 'achievement',
-        tags: ['FPGA', 'Verilog'],
-        likes: 17,
-        comments: 5,
-        shares: 0,
-        timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000),
-      },
-    ];
-    setPosts(demoPosts);
+    // Follows and posts will be fetched from backend APIs when needed
+    setFollows([]);
+    setPosts([]);
   }, []);
 
   // Fetch applications for faculty-owned projects via Redux
@@ -1142,96 +916,3 @@ export function useData() {
   return context;
 }
 
-
-
-// Sample placements data
-const sampleCompanies: Company[] = [
-  {
-    id: 'c1',
-    name: 'TechNova Labs',
-    industry: 'Software & AI',
-    website: 'https://technova.example.com',
-    contactName: 'Priya Sharma',
-    contactEmail: 'priya@technova.example.com',
-    rating: 4.6,
-    locations: ['Bangalore', 'Remote'],
-    openings: 8,
-    createdAt: new Date('2024-01-05'),
-  },
-  {
-    id: 'c2',
-    name: 'InnoCore Systems',
-    industry: 'Embedded & IoT',
-    website: 'https://innocore.example.com',
-    contactName: 'Rahul Mehta',
-    contactEmail: 'rahul@innocore.example.com',
-    rating: 4.2,
-    locations: ['Pune', 'Hyderabad'],
-    openings: 5,
-    createdAt: new Date('2024-01-12'),
-  },
-];
-
-const sampleJobs: Job[] = [
-  {
-    id: 'j1',
-    title: 'Software Engineer - Full Stack',
-    companyId: 'c1',
-    companyName: 'TechNova Labs',
-    type: 'full_time',
-    location: 'Remote',
-    ctc: '₹18 LPA',
-    requirements: ['Strong CS fundamentals', 'React/Node.js', 'SQL/NoSQL'],
-    skills: ['React', 'Node.js', 'TypeScript', 'PostgreSQL'],
-    openings: 3,
-    status: 'open',
-    postedAt: new Date('2024-02-05'),
-    applyBy: new Date('2024-03-01'),
-  },
-  {
-    id: 'j2',
-    title: 'Embedded Systems Intern',
-    companyId: 'c2',
-    companyName: 'InnoCore Systems',
-    type: 'internship',
-    location: 'Pune',
-    stipend: '₹25,000/month',
-    requirements: ['C/C++', 'Microcontrollers', 'Basics of RTOS'],
-    skills: ['C', 'C++', 'Arduino', 'STM32'],
-    openings: 2,
-    status: 'open',
-    postedAt: new Date('2024-02-10'),
-    applyBy: new Date('2024-03-05'),
-  },
-];
-
-const sampleDrives: PlacementDrive[] = [
-  {
-    id: 'd1',
-    companyId: 'c1',
-    companyName: 'TechNova Labs',
-    date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    positions: 5,
-    package: '₹18 LPA',
-    type: 'virtual',
-    requirements: ['Min 7.5 GPA', 'DSA assessment', 'Web dev portfolio'],
-    status: 'upcoming',
-    applicants: [],
-    shortlisted: [],
-    selected: [],
-  },
-  {
-    id: 'd2',
-    companyId: 'c2',
-    companyName: 'InnoCore Systems',
-    date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-    positions: 4,
-    package: '₹6 LPA (intern -> FTE)',
-    type: 'on_campus',
-    requirements: ['Min 7.0 GPA', 'C/C++ screening test'],
-    status: 'upcoming',
-    applicants: [],
-    shortlisted: [],
-    selected: [],
-  },
-];

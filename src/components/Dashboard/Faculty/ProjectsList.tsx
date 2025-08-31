@@ -3,7 +3,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { Users, Pencil, Trash2, Search, Filter, MessageSquare, UserPlus } from 'lucide-react';
+import { Users, Pencil, Trash2, Search, Filter, MessageSquare, UserPlus, TrendingUp, Clock, CheckCircle, BarChart3, Zap, Star, Calendar } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useWebSocket, ApplicationUpdateEvent } from '@/lib/websocket';
 import toast from 'react-hot-toast';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -39,10 +41,44 @@ export default function ProjectsList() {
   const projects = useAppSelector(selectProjects);
   const loading = useAppSelector(selectProjectsLoading);
   const error = useAppSelector(selectProjectsError);
+  const { connect, disconnect, onApplicationUpdate, offApplicationUpdate } = useWebSocket();
 
   useEffect(() => {
     dispatch(fetchMyProjects());
   }, [dispatch]);
+
+  // WebSocket connection for application updates
+  useEffect(() => {
+    const socket = connect();
+    
+    const handleApplicationUpdate = (event: ApplicationUpdateEvent) => {
+      const { type, application, projectId } = event;
+      
+      if (type === 'new-application') {
+        toast.success(`New application received for project: ${application.projectId}`, {
+          duration: 4000,
+          icon: '📝',
+        });
+        
+        // Refresh projects to get updated application count
+        dispatch(fetchMyProjects());
+      } else if (type === 'application-status-changed') {
+        toast(`Application status updated for project: ${projectId}`, {
+          icon: '🔄',
+        });
+        
+        // Refresh projects to get updated application status
+        dispatch(fetchMyProjects());
+      }
+    };
+
+    onApplicationUpdate(handleApplicationUpdate);
+
+    return () => {
+      offApplicationUpdate(handleApplicationUpdate);
+      disconnect();
+    };
+  }, [connect, disconnect, onApplicationUpdate, offApplicationUpdate, dispatch]);
 
   const myProjects = useMemo(() => projects, [projects]);
 
@@ -99,59 +135,177 @@ export default function ProjectsList() {
 
   if (!user) return null;
 
-  return (
-    <Card>
-      <CardHeader className="p-4 pb-0 space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">My Projects</h2>
-          <span className="text-sm text-muted-foreground">{myProjects.length} total</span>
-        </div>
-        {/* Stats */}
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <div className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
-            <span className="text-muted-foreground">Open</span>
-            <span className="font-semibold">{stats.open}</span>
-          </div>
-          <div className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
-            <span className="text-muted-foreground">In progress</span>
-            <span className="font-semibold">{stats.inProgress}</span>
-          </div>
-          <div className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
-            <span className="text-muted-foreground">Completed</span>
-            <span className="font-semibold">{stats.completed}</span>
-          </div>
-        </div>
+  // Animated counter component
+  const AnimatedCounter = ({ value, duration = 1000 }: { value: number; duration?: number }) => {
+    const [count, setCount] = useState(0);
+    
+    useEffect(() => {
+      let startTime: number;
+      let animationFrame: number;
+      
+      const animate = (timestamp: number) => {
+        if (!startTime) startTime = timestamp;
+        const progress = Math.min((timestamp - startTime) / duration, 1);
+        setCount(Math.floor(progress * value));
+        
+        if (progress < 1) {
+          animationFrame = requestAnimationFrame(animate);
+        }
+      };
+      
+      animationFrame = requestAnimationFrame(animate);
+      return () => cancelAnimationFrame(animationFrame);
+    }, [value, duration]);
+    
+    return <span>{count}</span>;
+  };
 
-        {/* Search + Filters */}
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+  return (
+    <motion.div 
+      className="space-y-6"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.6 }}
+    >
+      {/* Header */}
+      <motion.div 
+        className="flex items-center justify-between"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <div>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            My Projects
+          </h1>
+          <p className="text-gray-600 mt-1">Manage and track your research projects</p>
+        </div>
+        <motion.span 
+          className="text-sm text-gray-500 font-medium px-3 py-1 bg-gray-100 rounded-full"
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+        >
+          <AnimatedCounter value={myProjects.length} /> total projects
+        </motion.span>
+      </motion.div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <motion.div 
+          className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-2xl border border-blue-200 shadow-lg hover:shadow-xl transition-all duration-300"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+          whileHover={{ scale: 1.02, y: -2 }}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-blue-700 mb-1">Open Projects</p>
+              <p className="text-3xl font-bold text-blue-900">
+                <AnimatedCounter value={stats.open} />
+              </p>
+            </div>
+            <div className="p-3 bg-blue-500 rounded-xl shadow-lg">
+              <TrendingUp className="w-6 h-6 text-white" />
+            </div>
+          </div>
+        </motion.div>
+        
+        <motion.div 
+          className="bg-gradient-to-br from-amber-50 to-amber-100 p-6 rounded-2xl border border-amber-200 shadow-lg hover:shadow-xl transition-all duration-300"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+          whileHover={{ scale: 1.02, y: -2 }}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-amber-700 mb-1">In Progress</p>
+              <p className="text-3xl font-bold text-amber-900">
+                <AnimatedCounter value={stats.inProgress} />
+              </p>
+            </div>
+            <div className="p-3 bg-amber-500 rounded-xl shadow-lg">
+              <Clock className="w-6 h-6 text-white" />
+            </div>
+          </div>
+        </motion.div>
+        
+        <motion.div 
+          className="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-2xl border border-green-200 shadow-lg hover:shadow-xl transition-all duration-300"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+          whileHover={{ scale: 1.02, y: -2 }}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-green-700 mb-1">Completed</p>
+              <p className="text-3xl font-bold text-green-900">
+                <AnimatedCounter value={stats.completed} />
+              </p>
+            </div>
+            <div className="p-3 bg-green-500 rounded-xl shadow-lg">
+              <CheckCircle className="w-6 h-6 text-white" />
+            </div>
+          </div>
+        </motion.div>
+        
+        <motion.div 
+          className="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-2xl border border-purple-200 shadow-lg hover:shadow-xl transition-all duration-300"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.4 }}
+          whileHover={{ scale: 1.02, y: -2 }}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-purple-700 mb-1">Enrolled Students</p>
+              <p className="text-3xl font-bold text-purple-900">
+                <AnimatedCounter value={myProjects.reduce((sum, p) => sum + (p.acceptedStudentsCount || 0), 0)} />
+              </p>
+            </div>
+            <div className="p-3 bg-purple-500 rounded-xl shadow-lg">
+              <Users className="w-6 h-6 text-white" />
+            </div>
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Search and Filters */}
+      <motion.div 
+        className="bg-white rounded-2xl border border-gray-200 shadow-lg p-6"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.5 }}
+      >
+        <div className="flex flex-col lg:flex-row gap-4">
+          <div className="flex-1 relative">
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
             <input
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by title or description"
-              className="w-full rounded-md border px-9 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              aria-label="Search projects"
+              placeholder="Search by title or description..."
+              className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm"
             />
           </div>
-          <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+          <div className="flex items-center gap-3">
+            <Filter className="h-5 w-5 text-gray-400" />
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as any)}
-              className="rounded-md border px-3 py-2 text-sm bg-background"
-              aria-label="Filter by status"
+              className="px-4 py-3 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm font-medium"
             >
               <option value="all">All statuses</option>
-              <option value="OPEN">Open</option>
-              <option value="IN_PROGRESS">In progress</option>
-              <option value="COMPLETED">Completed</option>
+              <option value="OPEN">🟢 Open</option>
+              <option value="IN_PROGRESS">⚡ In progress</option>
+              <option value="COMPLETED">✅ Completed</option>
             </select>
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value as any)}
-              className="rounded-md border px-3 py-2 text-sm bg-background"
-              aria-label="Filter by project type"
+              className="px-4 py-3 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm font-medium"
             >
               <option value="all">All types</option>
               {projectTypeOptions.map((opt) => (
@@ -160,7 +314,19 @@ export default function ProjectsList() {
             </select>
           </div>
         </div>
-      </CardHeader>
+      </motion.div>
+
+      {/* Projects Content */}
+      <Card className="shadow-lg border-0 rounded-2xl overflow-hidden">
+        <CardHeader className="p-6 pb-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-2xl font-bold text-gray-900">Project Overview</h2>
+            <Badge variant="outline" className="text-sm font-semibold">
+              <BarChart3 className="w-4 h-4 mr-2" />
+              {myProjects.length} Projects
+            </Badge>
+          </div>
+        </CardHeader>
 
       {myProjects.length === 0 ? (
         <CardContent className="p-8 text-center text-muted-foreground">
@@ -210,7 +376,7 @@ export default function ProjectsList() {
                     <td className="px-4 py-3 align-top hidden md:table-cell">
                       <div className="flex items-center text-muted-foreground">
                         <Users className="w-4 h-4 mr-1" aria-hidden="true" />
-                        {project.maxStudents}
+                        {project.acceptedStudentsCount || 0}/{project.maxStudents}
                       </div>
                     </td>
                     <td className="px-4 py-3 align-top text-muted-foreground hidden md:table-cell">
@@ -311,7 +477,7 @@ export default function ProjectsList() {
                 <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
                   <div className="flex items-center">
                     <Users className="w-4 h-4 mr-1" aria-hidden="true" />
-                    {project.maxStudents}
+                    {project.acceptedStudentsCount || 0}/{project.maxStudents}
                   </div>
                   <div>
                     {project.deadline ? new Date(project.deadline).toLocaleDateString() : '-'}
@@ -387,5 +553,6 @@ export default function ProjectsList() {
         onSave={handleSave}
       />
     </Card>
+    </motion.div>
   );
 }

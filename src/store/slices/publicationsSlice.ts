@@ -1,39 +1,48 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
 import type { RootState } from '../store';
-import type { PublicationRecord, CreatePublicationPayload, UpdatePublicationPayload } from '@/lib/profileApi';
-import { getMyPublications, createPublication, updatePublication, deletePublication } from '@/lib/profileApi';
+import type { Publication } from '../../lib/profileApi';
+import { profileApi } from '../../lib/profileApi';
 
 interface PublicationsState {
-  items: PublicationRecord[];
+  items: Publication[];
+  publications: Publication[]; // Alias for profile components
   loading: boolean;
   error?: string;
 }
 
 const initialState: PublicationsState = {
   items: [],
+  publications: [],
   loading: false,
 };
 
-export const fetchMyPublications = createAsyncThunk<PublicationRecord[]>(
+export const fetchMyPublications = createAsyncThunk<Publication[]>(
   'publications/fetchMyPublications',
   async () => {
-    const list = await getMyPublications();
-    return list;
+    return await profileApi.getMyPublications();
   }
 );
 
-export const createPublicationRecord = createAsyncThunk<PublicationRecord, CreatePublicationPayload>(
+// Fetch publications for any user (for profile viewing)
+export const fetchPublications = createAsyncThunk<Publication[], string>(
+  'publications/fetchPublications',
+  async (userId) => {
+    return await profileApi.getPublications(userId);
+  }
+);
+
+export const createPublicationRecord = createAsyncThunk<Publication, Omit<Publication, 'id'>>(
   'publications/create',
   async (payload) => {
-    const created = await createPublication(payload);
+    const created = await profileApi.createPublication(payload);
     return created;
   }
 );
 
-export const updatePublicationRecord = createAsyncThunk<PublicationRecord, { id: string; changes: UpdatePublicationPayload }>(
+export const updatePublicationRecord = createAsyncThunk<Publication, { id: string; changes: Partial<Publication> }>(
   'publications/update',
   async ({ id, changes }) => {
-    const updated = await updatePublication(id, changes);
+    const updated = await profileApi.updatePublication(id, changes);
     return updated;
   }
 );
@@ -41,7 +50,7 @@ export const updatePublicationRecord = createAsyncThunk<PublicationRecord, { id:
 export const deletePublicationRecord = createAsyncThunk<string, string>(
   'publications/delete',
   async (id) => {
-    await deletePublication(id);
+    await profileApi.deletePublication(id);
     return id;
   }
 );
@@ -56,23 +65,34 @@ const publicationsSlice = createSlice({
         state.loading = true;
         state.error = undefined;
       })
-      .addCase(fetchMyPublications.fulfilled, (state, action: PayloadAction<PublicationRecord[]>) => {
+      .addCase(fetchMyPublications.fulfilled, (state, action: PayloadAction<Publication[]>) => {
         state.loading = false;
-        // backend already returns sorted by year desc, but ensure deterministic order
         state.items = [...action.payload].sort((a, b) => (b.year || 0) - (a.year || 0));
+        state.publications = state.items;
       })
       .addCase(fetchMyPublications.rejected, (state, action) => {
         state.loading = false;
         state.error = action.error.message || 'Failed to load publications';
       })
-      .addCase(createPublicationRecord.fulfilled, (state, action: PayloadAction<PublicationRecord>) => {
-        state.items = [action.payload, ...state.items];
+      .addCase(fetchPublications.fulfilled, (state, action: PayloadAction<Publication[]>) => {
+        state.loading = false;
+        state.items = [...action.payload].sort((a, b) => (b.year || 0) - (a.year || 0));
+        state.publications = state.items;
       })
-      .addCase(updatePublicationRecord.fulfilled, (state, action: PayloadAction<PublicationRecord>) => {
-        state.items = state.items.map((p) => (p.id === action.payload.id ? { ...p, ...action.payload } : p));
+      .addCase(createPublicationRecord.fulfilled, (state, action: PayloadAction<Publication>) => {
+        state.items = [action.payload, ...state.items];
+        state.publications = state.items;
+      })
+      .addCase(updatePublicationRecord.fulfilled, (state, action: PayloadAction<Publication>) => {
+        state.items = state.items.map((p: Publication) => (p.id === action.payload.id ? { ...p, ...action.payload } : p));
+        state.publications = state.items;
       })
       .addCase(deletePublicationRecord.fulfilled, (state, action: PayloadAction<string>) => {
-        state.items = state.items.filter((p) => p.id !== action.payload);
+        const index = state.items.findIndex((p: Publication) => p.id === action.payload);
+        if (index !== -1) {
+          state.items.splice(index, 1);
+          state.publications = state.items;
+        }
       });
   },
 });

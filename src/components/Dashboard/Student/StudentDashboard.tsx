@@ -33,29 +33,25 @@ export default function StudentDashboard() {
       name: 'Active Applications',
       value: pendingApplications.length,
       icon: Clock,
-      color: 'bg-yellow-500',
-      change: '+12%'
+      color: 'bg-yellow-500'
     },
     {
       name: 'Accepted Projects',
       value: acceptedApplications.length,
       icon: Award,
-      color: 'bg-green-500',
-      change: '+8%'
+      color: 'bg-green-500'
     },
     {
-      name: 'Skills Gained',
+      name: 'Skills',
       value: user?.skills?.length || 0,
       icon: TrendingUp,
-      color: 'bg-blue-500',
-      change: '+23%'
+      color: 'bg-blue-500'
     },
     {
-      name: 'Network Score',
-      value: '4.8',
+      name: 'Total Applications',
+      value: myApplications.length,
       icon: Star,
-      color: 'bg-purple-500',
-      change: '+5%'
+      color: 'bg-purple-500'
     }
   ];
 
@@ -100,10 +96,6 @@ export default function StudentDashboard() {
               <div>
                 <p className="text-sm font-medium text-gray-600">{stat.name}</p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">{stat.value}</p>
-                <div className="flex items-center mt-2">
-                  <span className="text-green-600 text-sm font-medium">{stat.change}</span>
-                  <span className="text-gray-500 text-sm ml-1">vs last month</span>
-                </div>
               </div>
               <div className={`${stat.color} p-3 rounded-lg`}>
                 <stat.icon className="w-6 h-6 text-white" />

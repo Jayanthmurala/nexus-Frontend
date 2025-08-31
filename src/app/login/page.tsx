@@ -172,10 +172,6 @@ export default function LoginPage() {
                   </button>
                 </div>
 
-                <p className="mt-6 text-sm text-slate-600 dark:text-slate-300">
-                  Don&apos;t have an account? {" "}
-                  <a className="text-blue-600 hover:underline" href="/register">Register</a>
-                </p>
               </div>
               <p className="mt-4 text-center text-xs text-slate-500">
                 Protected by industry standards. Sessions are secured with rotating refresh tokens.

@@ -24,9 +24,23 @@ function uploadBufferToCloudinary(
 ) {
   const { folder, resource_type = 'auto', public_id, tags } = opts
   return new Promise<import('cloudinary').UploadApiResponse>((resolve, reject) => {
+    // Set a timeout to prevent hanging uploads
+    const timeout = setTimeout(() => {
+      reject(new Error('Upload timeout after 30 seconds'))
+    }, 30000)
+
     const stream = (cloudinary as any).uploader.upload_stream(
-      { folder, resource_type, public_id, tags },
+      { 
+        folder, 
+        resource_type, 
+        public_id, 
+        tags,
+        timeout: 60000, // 60 second timeout for Cloudinary
+        quality: 'auto:good', // Optimize quality vs file size
+        fetch_format: 'auto', // Auto-optimize format
+      },
       (error: unknown, result: import('cloudinary').UploadApiResponse | undefined) => {
+        clearTimeout(timeout)
         if (error || !result) return reject(error || new Error('Cloudinary upload returned no result'))
         resolve(result)
       }
