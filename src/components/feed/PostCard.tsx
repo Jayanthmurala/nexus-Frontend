@@ -13,9 +13,16 @@ import {
   Edit,
   Trash2,
   Globe,
-  Users
+  Users,
+  Flag,
+  ExternalLink
 } from 'lucide-react';
 import { useState } from 'react';
+import { networkApi } from '@/lib/networkApi';
+import { toast } from 'react-hot-toast';
+import CommentsSection from './CommentsSection';
+import ReportDialog from './ReportDialog';
+import PostEditModal from './PostEditModal';
 
 interface Post {
   id: string;
@@ -49,14 +56,116 @@ interface Post {
 
 interface PostCardProps {
   post: Post;
-  onLike: (postId: string) => void;
-  onBookmark: (postId: string) => void;
+  currentUserId?: string;
+  onLike?: (postId: string) => void;
+  onComment?: (postId: string) => void;
+  onShare?: (postId: string) => void;
+  onBookmark?: (postId: string) => void;
   onEdit?: (postId: string) => void;
   onDelete?: (postId: string) => void;
-  currentUserId?: string;
+  onRefresh?: () => void;
 }
 
-export default function PostCard({ post, onLike, onBookmark, onEdit, onDelete, currentUserId }: PostCardProps) {
+export default function PostCard({ post, currentUserId, onLike, onComment, onShare, onBookmark, onEdit, onDelete, onRefresh }: PostCardProps) {
+  const [isLiked, setIsLiked] = useState(post.isLiked);
+  const [isBookmarked, setIsBookmarked] = useState(post.isBookmarked);
+  const [likeCount, setLikeCount] = useState(post.likes);
+  const [shareCount, setShareCount] = useState(post.shares);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showComments, setShowComments] = useState(false);
+  const [showReportDialog, setShowReportDialog] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+
+  // Handle like/unlike
+  const handleLike = async () => {
+    if (isLoading) return;
+    setIsLoading(true);
+    
+    try {
+      const result = await networkApi.likePost(post.id);
+      setIsLiked(result.liked);
+      setLikeCount(result.likeCount);
+      onLike?.(post.id);
+      toast.success(result.liked ? 'Post liked!' : 'Post unliked!');
+    } catch (error) {
+      toast.error('Failed to update like status');
+      console.error('Like error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle bookmark/unbookmark
+  const handleBookmark = async () => {
+    if (isLoading) return;
+    setIsLoading(true);
+    
+    try {
+      const result = await networkApi.bookmarkPost(post.id);
+      setIsBookmarked(result.bookmarked);
+      onBookmark?.(post.id);
+      toast.success(result.bookmarked ? 'Post bookmarked!' : 'Bookmark removed!');
+    } catch (error) {
+      toast.error('Failed to update bookmark status');
+      console.error('Bookmark error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle share
+  const handleShare = async () => {
+    if (isLoading) return;
+    setIsLoading(true);
+    
+    try {
+      const result = await networkApi.sharePost(post.id);
+      setShareCount(result.shareCount);
+      onShare?.(post.id);
+      toast.success('Post shared successfully!');
+    } catch (error) {
+      toast.error('Failed to share post');
+      console.error('Share error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle delete
+  const handleDelete = async () => {
+    if (!confirm('Are you sure you want to delete this post?')) return;
+    if (isLoading) return;
+    setIsLoading(true);
+    
+    try {
+      await networkApi.deletePost(post.id);
+      onDelete?.(post.id);
+      onRefresh?.();
+      toast.success('Post deleted successfully!');
+    } catch (error) {
+      toast.error('Failed to delete post');
+      console.error('Delete error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle report
+  const handleReport = async (reason: string, description?: string) => {
+    if (isLoading) return;
+    setIsLoading(true);
+    
+    try {
+      await networkApi.reportPost(post.id, reason, description);
+      setShowReportDialog(false);
+      toast.success('Post reported successfully!');
+    } catch (error) {
+      toast.error('Failed to report post');
+      console.error('Report error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
   const getPostTypeColor = (type: string) => {
     switch (type) {
       case 'achievement': return 'bg-green-100 text-green-800';
@@ -130,12 +239,12 @@ export default function PostCard({ post, onLike, onBookmark, onEdit, onDelete, c
           </div>
           
           {/* More actions menu */}
-          {currentUserId === post.authorId && (
-            <PostActionsMenu 
-              onEdit={() => onEdit?.(post.id)}
-              onDelete={() => onDelete?.(post.id)}
-            />
-          )}
+          <PostActionsMenu 
+            isOwner={currentUserId === post.authorId}
+            onEdit={() => setShowEditModal(true)}
+            onDelete={handleDelete}
+            onReport={() => setShowReportDialog(true)}
+          />
         </div>
       </div>
 
@@ -199,43 +308,97 @@ export default function PostCard({ post, onLike, onBookmark, onEdit, onDelete, c
       <div className="flex items-center justify-between pt-4 border-t border-gray-100">
         <div className="flex items-center space-x-6">
           <button
-            onClick={() => onLike(post.id)}
+            onClick={handleLike}
+            disabled={isLoading}
             className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
-              post.isLiked 
+              isLiked 
                 ? 'bg-red-50 text-red-600' 
                 : 'hover:bg-gray-100 text-gray-600'
-            }`}
+            } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
-            <Heart className={`w-5 h-5 ${post.isLiked ? 'fill-current' : ''}`} />
-            <span className="text-sm font-medium">{post.likes}</span>
+            <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
+            <span className="text-sm font-medium">{likeCount}</span>
           </button>
-          <button className="flex items-center space-x-2 px-3 py-2 rounded-lg hover:bg-gray-100 text-gray-600 transition-colors">
+          <button 
+            onClick={() => setShowComments(!showComments)}
+            className="flex items-center space-x-2 px-3 py-2 rounded-lg hover:bg-gray-100 text-gray-600 transition-colors"
+          >
             <MessageCircle className="w-5 h-5" />
             <span className="text-sm font-medium">{post.comments}</span>
           </button>
-          <button className="flex items-center space-x-2 px-3 py-2 rounded-lg hover:bg-gray-100 text-gray-600 transition-colors">
+          <button 
+            onClick={handleShare}
+            disabled={isLoading}
+            className={`flex items-center space-x-2 px-3 py-2 rounded-lg hover:bg-gray-100 text-gray-600 transition-colors ${
+              isLoading ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
+          >
             <Share className="w-5 h-5" />
-            <span className="text-sm font-medium">{post.shares}</span>
+            <span className="text-sm font-medium">{shareCount}</span>
           </button>
         </div>
         <button
-          onClick={() => onBookmark(post.id)}
+          onClick={handleBookmark}
+          disabled={isLoading}
           className={`p-2 rounded-lg transition-colors ${
-            post.isBookmarked 
+            isBookmarked 
               ? 'bg-blue-50 text-blue-600' 
               : 'hover:bg-gray-100 text-gray-600'
-          }`}
+          } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
           aria-label="Bookmark"
         >
-          <Bookmark className={`w-5 h-5 ${post.isBookmarked ? 'fill-current' : ''}`} />
+          <Bookmark className={`w-5 h-5 ${isBookmarked ? 'fill-current' : ''}`} />
         </button>
       </div>
+
+      {/* Comments Section */}
+      {showComments && (
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <CommentsSection postId={post.id} currentUserId={currentUserId} />
+        </div>
+      )}
+
+      {/* Report Dialog */}
+      {showReportDialog && (
+        <ReportDialog 
+          onReport={handleReport}
+          onClose={() => setShowReportDialog(false)}
+        />
+      )}
+
+      {/* Edit Modal */}
+      {showEditModal && (
+        <PostEditModal 
+          post={{
+            id: post.id,
+            content: post.content,
+            visibility: post.visibility,
+            tags: post.tags,
+            links: post.attachments?.filter(a => a.type === 'link').map(a => ({ url: a.url, title: a.title }))
+          }}
+          onClose={() => setShowEditModal(false)}
+          onUpdate={(updatedPost) => {
+            onRefresh?.();
+            setShowEditModal(false);
+          }}
+        />
+      )}
     </div>
   );
 }
 
 // Post actions menu component
-function PostActionsMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
+function PostActionsMenu({ 
+  isOwner, 
+  onEdit, 
+  onDelete, 
+  onReport 
+}: { 
+  isOwner: boolean; 
+  onEdit: () => void; 
+  onDelete: () => void; 
+  onReport: () => void; 
+}) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -255,20 +418,33 @@ function PostActionsMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: (
             onClick={() => setIsOpen(false)}
           />
           <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
-            <button
-              onClick={() => { onEdit(); setIsOpen(false); }}
-              className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
-            >
-              <Edit className="w-4 h-4" />
-              <span>Edit post</span>
-            </button>
-            <button
-              onClick={() => { onDelete(); setIsOpen(false); }}
-              className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2"
-            >
-              <Trash2 className="w-4 h-4" />
-              <span>Delete post</span>
-            </button>
+            {isOwner && (
+              <>
+                <button
+                  onClick={() => { onEdit(); setIsOpen(false); }}
+                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
+                >
+                  <Edit className="w-4 h-4" />
+                  <span>Edit post</span>
+                </button>
+                <button
+                  onClick={() => { onDelete(); setIsOpen(false); }}
+                  className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Delete post</span>
+                </button>
+              </>
+            )}
+            {!isOwner && (
+              <button
+                onClick={() => { onReport(); setIsOpen(false); }}
+                className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2"
+              >
+                <Flag className="w-4 h-4" />
+                <span>Report post</span>
+              </button>
+            )}
           </div>
         </>
       )}

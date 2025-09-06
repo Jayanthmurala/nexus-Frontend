@@ -1,398 +1,363 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { useAppSelector, useAppDispatch } from '../../store/hooks';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { 
+  Users, 
+  MessageCircle, 
+  UserPlus, 
+  UserX,
+  Building2,
+  GraduationCap,
+  Mail,
+  Calendar,
+  MapPin,
+  Loader2,
+  Heart,
+  Eye,
+  TrendingUp,
+  Star,
+  BookOpen,
+  Award
+} from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { fetchProfile, updateProfile } from '@/store/slices/profileSlice';
-import { fetchAwardsForStudent } from '@/store/slices/badgesSlice';
-import { fetchMyPersonalProjects } from '@/store/slices/projectsSlice';
-import { profileApi } from '@/lib/profileApi';
-import type { StudentBadgeAward } from '../../lib/profileApi';
+import { networkApi, User, NetworkStats } from '@/lib/networkApi';
 import toast from 'react-hot-toast';
-import ProfileHero from './ProfileHero';
-import ProfileStats from './ProfileStats';
-import ProfileTabs from './ProfileTabs';
-import AboutTab from './AboutTab';
-import StudentProjectsTab from './StudentProjectsTab';
-import StudentBadgesTab from './StudentBadgesTab';
-import ContactTab from './ContactTab';
 
 interface StudentProfileProps {
-  userId?: string; // If not provided, shows current user's profile
+  userId: string;
 }
 
-// Transform StudentBadgeAward to Badge format expected by StudentBadgesTab
-const transformBadges = (awards: StudentBadgeAward[]) => {
-  return awards.map(award => ({
-    id: award.id,
-    name: award.badge?.name || award.badgeId,
-    description: award.badge?.description || award.reason,
-    icon: award.badge?.icon || 'award', // Use icon from badge definition or fallback
-    color: award.badge?.color || '#3B82F6', // Use color from badge or default blue
-    rarity: (award.badge?.rarity?.toLowerCase() || 'common') as 'common' | 'rare' | 'epic' | 'legendary',
-    category: award.badge?.category || 'achievement',
-    awardedAt: award.awardedAt,
-    awardedBy: award.awardedBy,
-    awardedByName: award.awardedByName || 'Unknown',
-    reason: award.reason,
-    projectId: award.projectId
-  }));
-};
-
-// Transform profile to include role
-const transformProfileWithRole = (profile: any) => {
-  if (!profile) return null;
-  return {
-    ...profile,
-    role: 'student' as const
-  };
-};
-
 export default function StudentProfile({ userId }: StudentProfileProps) {
-  const dispatch = useAppDispatch();
-  const reduxUser = useAppSelector((state) => state.auth.user);
-  const { user: authUser } = useAuth(); // Fallback to AuthContext
-  const user = reduxUser || (authUser ? {
-    id: authUser.id,
-    name: authUser.name,
-    email: authUser.email,
-    roles: [authUser.role.toUpperCase()],
-    avatar: authUser.avatar,
-    collegeMemberId: authUser.collegeMemberId,
-    college: authUser.collegeId,
-    department: authUser.department,
-  } : null);
-  const { profile, loading: profileLoading } = useAppSelector((state) => state.profile);
-  const { badges, loading: badgesLoading } = useAppSelector((state) => state.badges);
-  const { personalProjects, loading: projectsLoading } = useAppSelector((state) => state.projects);
-  
-  const [activeTab, setActiveTab] = useState('about');
-  const isOwnProfile = !userId || userId === user?.id;
-  const targetUserId = userId || user?.id;
+  const { user: currentUser } = useAuth();
+  const [profileUser, setProfileUser] = useState<User | null>(null);
+  const [networkStats, setNetworkStats] = useState<NetworkStats>({
+    followersCount: 0,
+    followingCount: 0,
+    profileViews: 0,
+    searchAppearances: 0
+  });
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [followLoading, setFollowLoading] = useState(false);
 
   useEffect(() => {
-    // Ensure we have a user before attempting to fetch profile data
-    if (!user) {
-      console.log('StudentProfile: No authenticated user, skipping data fetch');
-      console.log('StudentProfile: Auth state debug:', { user, userId, targetUserId });
-      return;
-    }
-
-    if (targetUserId) {
-      console.log('StudentProfile: Fetching data for userId:', targetUserId);
-      console.log('StudentProfile: Current user:', user);
-      console.log('StudentProfile: Profile state before fetch:', { profile, profileLoading });
-      
-      dispatch(fetchProfile(targetUserId))
-        .unwrap()
-        .then((profile) => {
-          console.log('StudentProfile: Profile fetched successfully:', profile);
-        })
-        .catch((error) => {
-          console.error('StudentProfile: Failed to fetch profile:', error);
-          toast.error('Failed to load profile data');
-        });
-      
-      dispatch(fetchAwardsForStudent({ studentId: targetUserId }));
-      // Fetch personal projects for the specific user
-      if (isOwnProfile) {
-        dispatch(fetchMyPersonalProjects());
+    const fetchProfileData = async () => {
+      try {
+        setLoading(true);
+        
+        // Fetch user directory to get user info
+        const directoryData = await networkApi.getUserDirectory();
+        const user = directoryData.users.find(u => u.id === userId);
+        
+        if (user) {
+          setProfileUser(user);
+          
+          // Fetch network stats
+          const stats = await networkApi.getNetworkStats(userId);
+          setNetworkStats(stats);
+          
+          // Check if current user is following this user
+          if (currentUser) {
+            const connections = await networkApi.getConnections(currentUser.id);
+            setIsFollowing(connections.users.some(c => c.id === userId));
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching profile data:', error);
+        toast.error('Failed to load profile');
+      } finally {
+        setLoading(false);
       }
-    } else {
-      console.log('StudentProfile: No targetUserId available');
-      console.log('StudentProfile: userId prop:', userId);
-      console.log('StudentProfile: user from auth:', user);
-    }
-  }, [dispatch, targetUserId, user, userId, isOwnProfile]);
+    };
 
-  const handleProfileUpdate = async (data: any) => {
+    if (userId) {
+      fetchProfileData();
+    }
+  }, [userId, currentUser]);
+
+  const handleFollow = async () => {
+    if (!currentUser || followLoading) return;
+    
+    setFollowLoading(true);
     try {
-      await dispatch(updateProfile(data));
-      // Refresh profile data to get updated avatar
-      if (targetUserId) {
-        dispatch(fetchProfile(targetUserId));
+      if (isFollowing) {
+        await networkApi.unfollowUser(userId);
+        setIsFollowing(false);
+        setNetworkStats(prev => ({ ...prev, followersCount: prev.followersCount - 1 }));
+        toast.success('Unfollowed successfully');
+      } else {
+        await networkApi.followUser(userId);
+        setIsFollowing(true);
+        setNetworkStats(prev => ({ ...prev, followersCount: prev.followersCount + 1 }));
+        toast.success('Following successfully');
       }
     } catch (error) {
-      console.error('Failed to update profile:', error);
+      console.error('Error following/unfollowing user:', error);
+      toast.error('Failed to update follow status');
+    } finally {
+      setFollowLoading(false);
     }
   };
 
-  const getStats = () => {
-    if (!profile) return [];
-
-    return [
-      {
-        label: 'Projects',
-        value: personalProjects?.length || 0,
-        color: 'emerald'
-      },
-      {
-        label: 'Badges Earned',
-        value: badges?.length || 0,
-        color: 'amber'
-      },
-      {
-        label: 'Skills',
-        value: profile.skills?.length || 0,
-        color: 'blue'
-      },
-      {
-        label: 'Year',
-        value: profile.year || 1,
-        color: 'purple'
-      }
-    ];
-  };
-
-  const getTabs = () => {
-    const baseTabs = [
-      { id: 'about', label: 'About', count: null },
-      { id: 'projects', label: 'Projects', count: personalProjects?.length || 0 },
-      { id: 'badges', label: 'Badges', count: badges?.length || 0 },
-      { id: 'contact', label: 'Contact', count: null }
-    ];
-
-    return baseTabs;
-  };
-
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'about':
-        return (
-          <AboutTab
-            profile={{
-              name: displayProfile?.displayName || '',
-              bio: displayProfile?.bio,
-              department: displayProfile?.department || '',
-              college: displayProfile?.collegeName || displayProfile?.college || '',
-              year: displayProfile?.year,
-              collegeMemberId: displayProfile?.collegeMemberId,
-              contactInfo: displayProfile?.contactInfo,
-              phoneNumber: displayProfile?.phoneNumber || displayProfile?.phone,
-              alternateEmail: displayProfile?.alternateEmail,
-              joinedAt: displayProfile?.joinedAt || new Date().toISOString(),
-              skills: displayProfile?.skills || []
-            }}
-            isOwnProfile={isOwnProfile}
-            onUpdate={handleProfileUpdate}
-          />
-        );
-      case 'projects':
-        return (
-          <StudentProjectsTab
-            projects={(personalProjects || []).map(project => ({
-              ...project,
-              technologies: (project as any).technologies || []
-            }))}
-            isOwnProfile={isOwnProfile}
-            loading={projectsLoading}
-            onAddProject={async (projectData) => {
-              try {
-                await profileApi.createPersonalProject(projectData);
-                toast.success('Project added successfully!');
-                dispatch(fetchMyPersonalProjects());
-              } catch (error) {
-                toast.error('Failed to add project');
-                console.error('Add project error:', error);
-              }
-            }}
-            onUpdateProject={async (id, projectData) => {
-              try {
-                await profileApi.updatePersonalProject(id, projectData);
-                toast.success('Project updated successfully!');
-                dispatch(fetchMyPersonalProjects());
-              } catch (error) {
-                toast.error('Failed to update project');
-                console.error('Update project error:', error);
-              }
-            }}
-            onDeleteProject={async (id) => {
-              try {
-                await profileApi.deletePersonalProject(id);
-                toast.success('Project deleted successfully!');
-                dispatch(fetchMyPersonalProjects());
-              } catch (error) {
-                toast.error('Failed to delete project');
-                console.error('Delete project error:', error);
-              }
-            }}
-          />
-        );
-      case 'badges':
-        return (
-          <StudentBadgesTab
-            badges={transformBadges(badges || [])}
-            loading={badgesLoading}
-          />
-        );
-      case 'contact':
-        return (
-          <ContactTab
-            profile={{
-              ...displayProfile,
-              phoneNumber: displayProfile?.phoneNumber || displayProfile?.phone,
-              resumeUrl: (displayProfile as any)?.resumeUrl,
-              resumeFilename: (displayProfile as any)?.resumeFilename
-            }}
-            role="student"
-            isOwnProfile={isOwnProfile}
-            onUpdate={handleProfileUpdate}
-          />
-        );
-      default:
-        return null;
-    }
-  };
-
-  if (profileLoading) {
+  if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50">
-        <div className="max-w-6xl mx-auto px-4 py-8">
-          {/* Hero Skeleton */}
-          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8 mb-8">
-            <div className="flex flex-col lg:flex-row items-center gap-8">
-              <div className="w-32 h-32 bg-gray-200 rounded-full animate-pulse"></div>
-              <div className="flex-1 space-y-4">
-                <div className="h-8 bg-gray-200 rounded animate-pulse"></div>
-                <div className="h-6 bg-gray-200 rounded w-2/3 animate-pulse"></div>
-                <div className="h-4 bg-gray-200 rounded w-1/2 animate-pulse"></div>
-              </div>
-            </div>
-          </div>
-
-          {/* Stats Skeleton */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            {Array.from({ length: 4 }).map((_, index) => (
-              <div key={index} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                <div className="space-y-3">
-                  <div className="h-6 bg-gray-200 rounded animate-pulse"></div>
-                  <div className="h-8 bg-gray-200 rounded animate-pulse"></div>
-                  <div className="h-4 bg-gray-200 rounded w-2/3 animate-pulse"></div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Content Skeleton */}
-          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8">
-            <div className="space-y-6">
-              <div className="h-6 bg-gray-200 rounded animate-pulse"></div>
-              <div className="space-y-4">
-                {Array.from({ length: 3 }).map((_, index) => (
-                  <div key={index} className="h-4 bg-gray-200 rounded animate-pulse"></div>
-                ))}
-              </div>
-            </div>
-          </div>
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-purple-600 mx-auto mb-4" />
+          <p className="text-gray-600">Loading profile...</p>
         </div>
       </div>
     );
   }
 
-  // Use real profile data from API
-  const displayProfile = profile;
-
-  if (!displayProfile && !profileLoading) {
+  if (!profileUser) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50">
-        <div className="max-w-6xl mx-auto px-4 py-8">
-          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8 text-center">
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">Profile Not Found</h2>
-            <p className="text-gray-600">Unable to load profile data. Please try again later.</p>
-            
-            {/* Debug information */}
-            <div className="mt-4 p-4 bg-gray-50 rounded-lg text-left text-xs">
-              <h4 className="font-medium mb-2">Debug Info:</h4>
-              <p>User: {user ? `${user.name} (${user.id})` : 'Not authenticated'}</p>
-              <p>Target User ID: {targetUserId || 'None'}</p>
-              <p>Profile Loading: {profileLoading ? 'Yes' : 'No'}</p>
-              <p>Profile Data: {displayProfile ? 'Available' : 'None'}</p>
-            </div>
-            
-            <button 
-              onClick={() => targetUserId && dispatch(fetchProfile(targetUserId))}
-              className="mt-4 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
-            >
-              Retry
-            </button>
-          </div>
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Profile not found</h2>
+          <p className="text-gray-600">This user profile could not be found.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50">
-      <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
-        {/* Hero Section */}
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50">
+      <div className="container mx-auto px-4 py-8 max-w-6xl">
+        {/* Profile Header */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
+          className="mb-8"
         >
-          <ProfileHero
-            profile={{
-              ...transformProfileWithRole(displayProfile),
-              avatar: displayProfile?.avatarUrl,
-              avatarUrl: displayProfile?.avatarUrl,
-              linkedin: displayProfile?.linkedIn,
-              github: displayProfile?.github,
-              twitter: displayProfile?.twitter,
-              website: displayProfile?.website
-            }}
-            stats={{
-              projects: personalProjects?.length || 0,
-              badges: badges?.length || 0,
-              skills: displayProfile?.skills?.length || 0,
-              followers: 0,
-              following: 0
-            }}
-            isOwnProfile={isOwnProfile}
-            onAvatarUpdate={async (url: string) => {
-              await handleProfileUpdate({ avatarUrl: url });
-            }}
-            onNavigateToContact={() => setActiveTab('contact')}
-          />
+          <Card className="border-0 shadow-xl bg-white/80 backdrop-blur-sm">
+            <CardContent className="p-8">
+              <div className="flex flex-col lg:flex-row items-start lg:items-center gap-8">
+                {/* Avatar and Basic Info */}
+                <div className="flex items-center gap-6">
+                  <div className="relative">
+                    <Avatar className="w-24 h-24 border-4 border-white shadow-lg ring-4 ring-purple-100">
+                      <AvatarImage src={profileUser.avatarUrl} className="object-cover" />
+                      <AvatarFallback className="bg-gradient-to-br from-purple-400 to-pink-400 text-white font-bold text-2xl">
+                        {profileUser.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-green-400 border-4 border-white rounded-full animate-pulse" />
+                  </div>
+                  
+                  <div>
+                    <h1 className="text-3xl font-bold text-gray-900 mb-2">{profileUser.name}</h1>
+                    <div className="flex items-center gap-2 mb-3">
+                      <Badge className="bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 border-purple-200">
+                        Student
+                      </Badge>
+                      <Badge variant="outline" className="border-green-200 text-green-700">
+                        <Star className="w-3 h-3 mr-1 fill-current" />
+                        Active Member
+                      </Badge>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      {profileUser.college && (
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <GraduationCap className="w-4 h-4" />
+                          <span>{profileUser.college}</span>
+                        </div>
+                      )}
+                      {profileUser.department && (
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <Building2 className="w-4 h-4" />
+                          <span>{profileUser.department}</span>
+                        </div>
+                      )}
+                      {profileUser.email && (
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <Mail className="w-4 h-4" />
+                          <span>{profileUser.email}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                {currentUser && currentUser.id !== userId && (
+                  <div className="flex items-center gap-3 lg:ml-auto">
+                    <Button
+                      variant="outline"
+                      className="flex items-center gap-2"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      Message
+                    </Button>
+                    
+                    <Button
+                      onClick={handleFollow}
+                      disabled={followLoading}
+                      className={`flex items-center gap-2 ${
+                        isFollowing 
+                          ? 'bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600' 
+                          : 'bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600'
+                      }`}
+                    >
+                      {followLoading ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : isFollowing ? (
+                        <UserX className="w-4 h-4" />
+                      ) : (
+                        <UserPlus className="w-4 h-4" />
+                      )}
+                      {isFollowing ? 'Unfollow' : 'Follow'}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </motion.div>
 
-        {/* Stats Section */}
+        {/* Stats Cards */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.1 }}
+          className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8"
         >
-          <ProfileStats
-            stats={{
-              projects: personalProjects?.length || 0,
-              badges: badges?.length || 0,
-              followers: 0,
-              following: 0
-            }}
-            role="student"
-            loading={profileLoading || badgesLoading || projectsLoading}
-          />
+          <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-lg">
+            <CardContent className="p-6 text-center">
+              <div className="flex items-center justify-center mb-2">
+                <Heart className="w-5 h-5 text-pink-500 mr-2" />
+                <div className="text-2xl font-bold text-gray-900">{networkStats.followersCount}</div>
+              </div>
+              <div className="text-sm text-gray-600">Followers</div>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-lg">
+            <CardContent className="p-6 text-center">
+              <div className="flex items-center justify-center mb-2">
+                <Users className="w-5 h-5 text-blue-500 mr-2" />
+                <div className="text-2xl font-bold text-gray-900">{networkStats.followingCount}</div>
+              </div>
+              <div className="text-sm text-gray-600">Following</div>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-lg">
+            <CardContent className="p-6 text-center">
+              <div className="flex items-center justify-center mb-2">
+                <Eye className="w-5 h-5 text-green-500 mr-2" />
+                <div className="text-2xl font-bold text-gray-900">{networkStats.profileViews}</div>
+              </div>
+              <div className="text-sm text-gray-600">Profile Views</div>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-lg">
+            <CardContent className="p-6 text-center">
+              <div className="flex items-center justify-center mb-2">
+                <TrendingUp className="w-5 h-5 text-orange-500 mr-2" />
+                <div className="text-2xl font-bold text-gray-900">{networkStats.searchAppearances}</div>
+              </div>
+              <div className="text-sm text-gray-600">Appearances</div>
+            </CardContent>
+          </Card>
         </motion.div>
 
-        {/* Tabs and Content */}
+        {/* Profile Content */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.2 }}
-          className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden"
+          className="grid grid-cols-1 lg:grid-cols-3 gap-8"
         >
-          <ProfileTabs
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-            role="student"
-            counts={{
-              projects: personalProjects?.length || 0,
-              badges: badges?.length || 0
-            }}
-          />
-          
-          <div className="p-8">
-            {renderTabContent()}
+          {/* About Section */}
+          <div className="lg:col-span-2">
+            <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-lg mb-6">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BookOpen className="w-5 h-5 text-purple-600" />
+                  About
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-700 leading-relaxed">
+                  Student at {profileUser.college || 'University'}, passionate about learning and connecting with peers. 
+                  Always eager to collaborate on projects and share knowledge with the community.
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Academic Info */}
+            <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-lg">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Award className="w-5 h-5 text-blue-600" />
+                  Academic Information
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between py-3 border-b border-gray-100">
+                    <span className="text-gray-600">Institution</span>
+                    <span className="font-medium">{profileUser.college || 'Not specified'}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-3 border-b border-gray-100">
+                    <span className="text-gray-600">Department</span>
+                    <span className="font-medium">{profileUser.department || 'Not specified'}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-3">
+                    <span className="text-gray-600">Status</span>
+                    <Badge className="bg-green-100 text-green-700">Active Student</Badge>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Sidebar */}
+          <div>
+            <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-lg">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="w-5 h-5 text-orange-600" />
+                  Quick Actions
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {currentUser && currentUser.id !== userId && (
+                  <>
+                    <Button 
+                      variant="outline" 
+                      className="w-full justify-start"
+                    >
+                      <MessageCircle className="w-4 h-4 mr-2" />
+                      Send Message
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      className="w-full justify-start"
+                    >
+                      <Mail className="w-4 h-4 mr-2" />
+                      Share Contact
+                    </Button>
+                  </>
+                )}
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start"
+                  onClick={() => window.history.back()}
+                >
+                  ← Back to Network
+                </Button>
+              </CardContent>
+            </Card>
           </div>
         </motion.div>
       </div>

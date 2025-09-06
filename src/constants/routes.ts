@@ -13,7 +13,7 @@ export const ROUTES = {
 
   FACULTY: {
     base: '/faculty',
-    profile: '/faculty/profile',
+    profile: '/profile',
     projects: '/projects',
     applications: '/applications',
     collaboration: '/collaboration',
@@ -26,12 +26,12 @@ export const ROUTES = {
 
   student: {
     dashboard: '/student',
-    profile: '/student/profile',
+    profile: '/profile',
     marketplace: '/student/marketplace',
     applications: '/student/my-applications',
     events: '/student/events',
     network: '/student/network',
-    messages: '/student/messages',
+    messages: '/messages',
   },
 
   DEPT_ADMIN: {

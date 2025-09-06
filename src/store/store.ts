@@ -11,9 +11,10 @@ import commentsReducer from './slices/commentsSlice';
 import tasksReducer from './slices/tasksSlice';
 import attachmentsReducer from './slices/attachmentsSlice';
 import eventsReducer from './slices/eventsSlice';
-import networkReducer from './slices/networkSlice';
 import profileReducer from './slices/profileSlice';
 import authReducer from './slices/authSlice';
+import feedReducer from './slices/feedSlice';
+import networkReducer from './slices/networkSlice';
 
 export const store = configureStore({
   reducer: {
@@ -29,9 +30,10 @@ export const store = configureStore({
     tasks: tasksReducer,
     attachments: attachmentsReducer,
     events: eventsReducer,
-    network: networkReducer,
     profile: profileReducer,
     auth: authReducer,
+    feed: feedReducer,
+    network: networkReducer,
   },
 });
 

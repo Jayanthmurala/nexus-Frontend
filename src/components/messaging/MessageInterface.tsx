@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, Phone, Video, MoreVertical, Smile, Paperclip, X, ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-// @ts-ignore - Socket.IO types will be available after npm install
 import { io, Socket } from 'socket.io-client';
 
 interface Message {

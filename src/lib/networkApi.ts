@@ -1,206 +1,328 @@
 import httpNetwork from './httpNetwork';
 
-export type FeedScope = 'following' | 'college' | 'global';
-
-export interface ListFeedParams {
-  scope?: FeedScope;
-  cursor?: string;
-  limit?: number; // 1-50 (backend default 20)
+// Types for Network API
+export interface NetworkStats {
+  followersCount: number;
+  followingCount: number;
+  profileViews: number;
+  searchAppearances: number;
 }
 
-export interface ListFeedResponse<T = any> {
-  items: T[];
-  nextCursor?: string;
-}
-
-export interface CreatePostBody {
-  content: string;
-  visibility?: 'PUBLIC' | 'COLLEGE';
-  type?: 'STANDARD' | 'BADGE_AWARD' | 'SHARE';
-  mediaIds?: string[];
-  tags?: string[];
-  links?: Array<{ url: string; title?: string }>;
-}
-
-export interface PostItem {
+export interface User {
   id: string;
+  name: string;
+  email?: string;
+  avatarUrl?: string;
+  department?: string;
+  college?: string;
+  collegeName?: string;
+  collegeMemberId?: string;
+  roles?: string[];
+  bio?: string;
+  year?: number;
+  followersCount?: number;
+  followingCount?: number;
+  isFollowing?: boolean;
+}
+
+export interface FollowSuggestion extends User {
+  mutualFollowersCount: number;
+  reason: 'same_college' | 'same_department' | 'mutual_connections' | 'popular';
+}
+
+export interface FollowResponse {
+  success: boolean;
+  message: string;
+}
+
+export interface ConnectionsResponse {
+  users: User[];
+  total: number;
+  hasMore: boolean;
+}
+
+export interface SuggestionsResponse {
+  suggestions: FollowSuggestion[];
+  total: number;
+}
+
+export interface DirectoryResponse {
+  users: User[];
+}
+
+// Post and Comment Types
+export interface Comment {
+  id: string;
+  postId: string;
+  content: string;
   authorId: string;
   authorDisplayName: string;
-  authorAvatarUrl?: string | null;
-  content?: string | null;
+  authorAvatarUrl?: string;
+  parentCommentId?: string;
+  likeCount: number;
+  likedByMe: boolean;
   createdAt: string;
-  visibility: 'PUBLIC' | 'COLLEGE';
-  type: 'STANDARD' | 'BADGE_AWARD' | 'SHARE' | 'AD';
+  updatedAt: string;
+  replies: Comment[];
+}
+
+export interface Post {
+  id: string;
+  type: string;
+  content: string;
+  visibility: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  authorId: string;
+  authorDisplayName: string;
+  authorAvatarUrl?: string;
+  authorRole: string;
+  authorDepartment?: string;
+  authorCollegeId?: string;
   likeCount: number;
   commentCount: number;
   shareCount: number;
-  likedByMe?: boolean;
-  bookmarkedByMe?: boolean;
-  media?: MediaItem[];
-  tags?: string[];
-  links?: Array<{ url: string; title?: string; order: number }>;
-}
-
-export interface MediaItem {
-  id: string;
-  url: string;
-  mimeType: string;
-  width?: number | null;
-  height?: number | null;
-}
-
-export interface FollowerStats {
-  followers: number;
-  following: number;
-  isFollowing: boolean;
-  followsMe: boolean;
-}
-
-export interface CreateMediaBody {
-  storageKey: string; // e.g., Cloudinary public_id
-  url: string;
-  mimeType: string;
-  sizeBytes: number;
-  width?: number;
-  height?: number;
-}
-
-export interface CreateMediaResponse {
-  id: string;
-  url: string;
-  mimeType: string;
-  width?: number | null;
-  height?: number | null;
-}
-
-export interface CommentItem {
-  id: string;
-  postId: string;
-  userId: string;
-  userDisplayName: string;
-  userAvatarUrl?: string | null;
-  content: string;
-  createdAt: string;
-}
-
-export interface UserEdgeItem {
-  userId: string;
-  followedAt: string;
-  iFollow: boolean;
-  followsMe: boolean;
-}
-
-export interface SuggestionItem {
-  userId: string;
-  displayName?: string | null;
-  avatarUrl?: string | null;
+  viewCount: number;
+  likedByMe: boolean;
+  bookmarkedByMe: boolean;
+  media: any[];
+  tags: string[];
+  links: any[];
+  badgeData?: any;
+  collaborationData?: any;
+  projectData?: any;
+  eventData?: any;
+  jobData?: any;
 }
 
 export const networkApi = {
-  async health(): Promise<{ status: 'ok' }> {
-    const res = await httpNetwork.get('/v1/network/health');
-    return res.data;
+  // Get network statistics for a user
+  getNetworkStats: async (userId: string): Promise<NetworkStats> => {
+    const response = await httpNetwork.get(`/v1/users/${userId}/stats`);
+    return response.data;
   },
 
-  async listFeed<T = any>(params?: ListFeedParams): Promise<ListFeedResponse<T>> {
-    const res = await httpNetwork.get('/v1/network/feed', { params });
-    return res.data;
+  // Get follow suggestions
+  getFollowSuggestions: async (limit: number = 12): Promise<SuggestionsResponse> => {
+    const response = await httpNetwork.get(`/v1/users/suggestions?limit=${limit}`);
+    return response.data;
   },
 
-  async follow(userId: string): Promise<{ ok: true; followed: boolean }> {
-    const res = await httpNetwork.post('/v1/network/follow', { userId });
-    return res.data;
+  // Get user directory (fallback for suggestions)
+  getUserDirectory: async (limit: number = 50, offset: number = 0, collegeFilter?: string): Promise<DirectoryResponse> => {
+    let url = `/v1/users/directory?limit=${limit}&offset=${offset}`;
+    if (collegeFilter && collegeFilter !== 'all') {
+      url += `&search=${encodeURIComponent(collegeFilter)}`;
+    }
+    const response = await httpNetwork.get(url);
+    return response.data;
   },
 
-  async unfollow(userId: string): Promise<{ ok: true; deleted: boolean }> {
-    const res = await httpNetwork.delete(`/v1/network/follow/${encodeURIComponent(userId)}`);
-    return res.data;
+  // Get colleges list
+  getColleges: async (): Promise<{colleges: Array<{id: string, name: string}>}> => {
+    const response = await httpNetwork.get('/v1/colleges');
+    return response.data;
   },
 
-  async createPost(body: CreatePostBody): Promise<PostItem> {
-    const res = await httpNetwork.post('/v1/posts', body);
-    return res.data;
+  // Get user's connections (following)
+  getConnections: async (userId: string, limit: number = 50): Promise<ConnectionsResponse> => {
+    const response = await httpNetwork.get(`/v1/users/${userId}/following?limit=${limit}`);
+    return response.data;
   },
 
-  async createMedia(body: CreateMediaBody): Promise<CreateMediaResponse> {
-    const res = await httpNetwork.post('/v1/media', body);
-    return res.data;
+  // Follow a user
+  followUser: async (userId: string): Promise<FollowResponse> => {
+    const response = await httpNetwork.post(`/v1/users/${userId}/follow`);
+    return response.data;
   },
 
-  async likePost(postId: string): Promise<{ ok: true; liked: boolean; likeCount: number }> {
-    const res = await httpNetwork.post(`/v1/posts/${encodeURIComponent(postId)}/like`);
-    return res.data;
+  // Unfollow a user
+  unfollowUser: async (userId: string): Promise<FollowResponse> => {
+    const response = await httpNetwork.delete(`/v1/users/${userId}/follow`);
+    return response.data;
   },
 
-  async unlikePost(postId: string): Promise<{ ok: true; unliked: boolean; likeCount: number }> {
-    const res = await httpNetwork.delete(`/v1/posts/${encodeURIComponent(postId)}/like`);
-    return res.data;
+  // Get followers of a user
+  getFollowers: async (userId: string, limit: number = 50): Promise<ConnectionsResponse> => {
+    const response = await httpNetwork.get(`/v1/users/${userId}/followers?limit=${limit}`);
+    return response.data;
   },
 
-  async listComments(postId: string, params?: { cursor?: string; limit?: number }): Promise<ListFeedResponse<CommentItem>> {
-    const res = await httpNetwork.get(`/v1/posts/${encodeURIComponent(postId)}/comments`, { params });
-    return res.data;
+  // Search users
+  searchUsers: async (query: string, limit: number = 20): Promise<DirectoryResponse> => {
+    const response = await httpNetwork.get(`/v1/users/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+    return response.data;
   },
 
-  async createComment(postId: string, content: string): Promise<CommentItem> {
-    const res = await httpNetwork.post(`/v1/posts/${encodeURIComponent(postId)}/comments`, { content });
-    return res.data;
+  // Get feed posts
+  getFeed: async ({ scope = 'global', limit = 10, search }: { scope?: 'global' | 'college' | 'following'; limit?: number; search?: string } = {}) => {
+    let url = `/v1/network/feed?scope=${scope}&limit=${limit}`;
+    if (search) {
+      url += `&search=${encodeURIComponent(search)}`;
+    }
+    const response = await httpNetwork.get(url);
+    return response.data;
   },
 
-  async deleteComment(commentId: string): Promise<{ ok: true; deleted: boolean }> {
-    const res = await httpNetwork.delete(`/v1/comments/${encodeURIComponent(commentId)}`);
-    return res.data;
+  // Create post
+  createPost: async (postData: any) => {
+    const response = await httpNetwork.post('/v1/posts/specialized', postData);
+    return response.data;
   },
 
-  async bookmarkPost(postId: string): Promise<{ ok: true; bookmarked: boolean }> {
-    const res = await httpNetwork.post(`/v1/posts/${encodeURIComponent(postId)}/bookmark`);
-    return res.data;
+  // Get trending topics
+  getTrending: async (): Promise<{ items: any[] }> => {
+    const response = await httpNetwork.get('/v1/network/trending');
+    return response.data;
   },
 
-  async unbookmarkPost(postId: string): Promise<{ ok: true; unbookmarked: boolean }> {
-    const res = await httpNetwork.delete(`/v1/posts/${encodeURIComponent(postId)}/bookmark`);
-    return res.data;
+  // Get user suggestions
+  getSuggestions: async (): Promise<{ suggestions: FollowSuggestion[] }> => {
+    const response = await httpNetwork.get('/v1/users/suggestions');
+    return response.data;
   },
 
-  async fetchFollowerStats(userId: string): Promise<FollowerStats> {
-    const res = await httpNetwork.get(`/v1/network/followers/${encodeURIComponent(userId)}/stats`);
-    return res.data as FollowerStats;
+  // Apply to collaboration post
+  applyToCollaboration: async (postId: string, message?: string): Promise<{ success: boolean; message: string }> => {
+    const response = await httpNetwork.post(`/v1/posts/${postId}/apply`, { message });
+    return response.data;
   },
 
-  async listFollowers(userId: string, params?: { cursor?: string; limit?: number }): Promise<ListFeedResponse<UserEdgeItem>> {
-    const res = await httpNetwork.get(`/v1/network/followers/${encodeURIComponent(userId)}`, { params });
-    return res.data as ListFeedResponse<UserEdgeItem>;
+  // =================== POST CRUD OPERATIONS ===================
+  
+  // Like/Unlike a post
+  likePost: async (postId: string): Promise<{ liked: boolean; likeCount: number }> => {
+    const response = await httpNetwork.post(`/v1/posts/${postId}/like`);
+    return response.data;
   },
 
-  async listFollowing(userId: string, params?: { cursor?: string; limit?: number }): Promise<ListFeedResponse<UserEdgeItem>> {
-    const res = await httpNetwork.get(`/v1/network/following/${encodeURIComponent(userId)}`, { params });
-    return res.data as ListFeedResponse<UserEdgeItem>;
+  // Bookmark/Unbookmark a post
+  bookmarkPost: async (postId: string): Promise<{ bookmarked: boolean }> => {
+    const response = await httpNetwork.post(`/v1/posts/${postId}/bookmark`);
+    return response.data;
   },
 
-  async listSuggestions(params?: { limit?: number }): Promise<{ items: SuggestionItem[] }> {
-    const res = await httpNetwork.get('/v1/network/suggestions', { params });
-    return res.data as { items: SuggestionItem[] };
+  // Update a post
+  updatePost: async (postId: string, updateData: any): Promise<Post> => {
+    const response = await httpNetwork.put(`/v1/posts/${postId}`, updateData);
+    return response.data;
   },
 
-  async listBookmarks(params?: { cursor?: string; limit?: number }): Promise<ListFeedResponse<PostItem>> {
-    const res = await httpNetwork.get('/v1/network/bookmarks', { params });
-    return res.data as ListFeedResponse<PostItem>;
+  // Delete a post
+  deletePost: async (postId: string): Promise<{ deleted: boolean }> => {
+    const response = await httpNetwork.delete(`/v1/posts/${postId}`);
+    return response.data;
   },
 
-  async listTrending(params?: { sinceDays?: number; cursor?: string; limit?: number }): Promise<ListFeedResponse<PostItem>> {
-    const res = await httpNetwork.get('/v1/network/trending', { params });
-    return res.data as ListFeedResponse<PostItem>;
+  // Share a post
+  sharePost: async (postId: string, shareType: 'SHARE' | 'REPOST' = 'SHARE'): Promise<{ shared: boolean; shareCount: number }> => {
+    const response = await httpNetwork.post(`/v1/posts/${postId}/share`, { shareType });
+    return response.data;
   },
 
-  async updatePost(postId: string, body: { content: string; visibility?: 'PUBLIC' | 'COLLEGE'; type?: 'STANDARD' | 'BADGE_AWARD' | 'SHARE' }): Promise<{ id: string; content: string; visibility: string; type: string; updatedAt: string }> {
-    const res = await httpNetwork.put(`/v1/posts/${encodeURIComponent(postId)}`, body);
-    return res.data;
+  // Report a post
+  reportPost: async (postId: string, reason: string, description?: string): Promise<{ reported: boolean }> => {
+    const response = await httpNetwork.post(`/v1/posts/${postId}/report`, { reason, description });
+    return response.data;
   },
 
-  async deletePost(postId: string): Promise<{ ok: true; deleted: boolean }> {
-    const res = await httpNetwork.delete(`/v1/posts/${encodeURIComponent(postId)}`);
-    return res.data;
+  // =================== COMMENT CRUD OPERATIONS ===================
+  
+  // Get comments for a post (alias for compatibility)
+  listComments: async (postId: string, cursor?: string, limit: number = 20): Promise<{ items: Comment[]; nextCursor?: string; hasMore: boolean }> => {
+    const params = new URLSearchParams();
+    if (cursor) params.append('cursor', cursor);
+    params.append('limit', limit.toString());
+    
+    const response = await httpNetwork.get(`/v1/posts/${postId}/comments?${params}`);
+    return response.data;
   },
+
+  // Get comments for a post
+  getComments: async (postId: string, cursor?: string, limit: number = 20): Promise<{ items: Comment[]; nextCursor?: string; hasMore: boolean }> => {
+    const params = new URLSearchParams();
+    if (cursor) params.append('cursor', cursor);
+    params.append('limit', limit.toString());
+    
+    const response = await httpNetwork.get(`/v1/posts/${postId}/comments?${params}`);
+    return response.data;
+  },
+
+  // Create a comment
+  createComment: async (postId: string, content: string, parentCommentId?: string): Promise<Comment> => {
+    const response = await httpNetwork.post(`/v1/posts/${postId}/comments`, { content, parentCommentId });
+    return response.data.comment;
+  },
+
+  // Update a comment
+  updateComment: async (commentId: string, content: string): Promise<Comment> => {
+    const response = await httpNetwork.put(`/v1/comments/${commentId}`, { content });
+    return response.data.comment;
+  },
+
+  // Delete a comment
+  deleteComment: async (commentId: string): Promise<{ deleted: boolean }> => {
+    const response = await httpNetwork.delete(`/v1/comments/${commentId}`);
+    return response.data;
+  },
+
+  // Like/Unlike a comment
+  likeComment: async (commentId: string): Promise<{ liked: boolean; likeCount: number }> => {
+    const response = await httpNetwork.post(`/v1/comments/${commentId}/like`);
+    return response.data;
+  },
+
+  // Associate media with post
+  associateMediaWithPost: async (postId: string, mediaIds: string[]): Promise<{ success: boolean }> => {
+    const response = await httpNetwork.post(`/v1/posts/${postId}/media`, { mediaIds });
+    return response.data;
+  },
+
+  // =================== MEDIA UPLOAD ===================
+  
+  // Upload media file
+  uploadMedia: async (file: File): Promise<{ id: string; url: string; mimeType: string; width?: number; height?: number }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const response = await httpNetwork.post('/v1/media/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  // =================== SEARCH AND FILTERING ===================
+  
+  // Enhanced search posts
+  searchPosts: async (query: string, filters: {
+    postTypes?: string[];
+    dateRange?: { from: string; to: string };
+    authorId?: string;
+    tags?: string[];
+    cursor?: string;
+    limit?: number;
+  } = {}): Promise<{ items: Post[]; nextCursor?: string; hasMore: boolean }> => {
+    const params = new URLSearchParams();
+    params.append('q', query);
+    
+    if (filters.postTypes?.length) {
+      filters.postTypes.forEach(type => params.append('type', type));
+    }
+    if (filters.dateRange) {
+      params.append('from', filters.dateRange.from);
+      params.append('to', filters.dateRange.to);
+    }
+    if (filters.authorId) params.append('authorId', filters.authorId);
+    if (filters.tags?.length) {
+      filters.tags.forEach(tag => params.append('tag', tag));
+    }
+    if (filters.cursor) params.append('cursor', filters.cursor);
+    if (filters.limit) params.append('limit', filters.limit.toString());
+    
+    const response = await httpNetwork.get(`/v1/search/posts?${params}`);
+    return response.data;
+  }
 };
-
-export default networkApi;

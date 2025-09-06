@@ -8,7 +8,7 @@ export default function DeptAdminEventsPage() {
   const { user } = useAuth();
 
   // Role guard - only department admins can access
-  if (user?.role !== 'DEPT_ADMIN') {
+  if (user?.role !== 'dept_admin') {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">

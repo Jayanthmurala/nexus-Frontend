@@ -51,7 +51,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // Start with loading true
   const { data: session, status } = useSession();
   const dispatch = useAppDispatch();
   // Profile functionality removed
@@ -206,9 +206,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         })();
       }
-    } else {
+    } else if (status === 'unauthenticated') {
       setUser(null);
       setLoading(false);
+    } else {
+      // Keep loading true for initial state or unknown status
+      setLoading(true);
     }
   }, [session, status, dispatch]);
 
@@ -236,9 +239,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {}
     await nextAuthSignOut({ redirect: false });
     setUser(null);
-    try {
-      router.replace('/login');
-    } catch {}
+    // Force redirect to login page
+    window.location.href = '/login';
   };
 
   const updateProfile = (updates: Partial<User>) => {
