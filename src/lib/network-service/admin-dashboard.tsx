@@ -103,7 +103,7 @@ const AdminStats: React.FC<AdminStatsProps> = ({ config }) => {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {Object.entries(stats.postsByType).map(([type, count]) => (
             <div key={type} className="text-center p-3 bg-gray-50 rounded">
-              <p className="text-2xl font-bold text-gray-700">{count}</p>
+              <p className="text-2xl font-bold text-gray-700">{count as number}</p>
               <p className="text-xs text-gray-500 mt-1">{type.replace('_', ' ')}</p>
             </div>
           ))}

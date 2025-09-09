@@ -74,12 +74,7 @@ export const useBadgeNotifications = (): UseBadgeNotificationsReturn => {
         setShowNotification(notification);
       }, 500);
 
-      // Send telemetry for badge award
-      await networkApi.sendTelemetry([{
-        postId: draftPost.id,
-        eventType: 'viewImpression',
-        timestamp: new Date().toISOString()
-      }]);
+      // Telemetry functionality removed - not available in current networkApi
 
     } catch (error) {
       console.error('Failed to create badge draft post:', error);
@@ -103,12 +98,7 @@ export const useBadgeNotifications = (): UseBadgeNotificationsReturn => {
       // Remove notification after publishing
       setNotifications(prev => prev.filter(n => n.draftPost.id !== postId));
       
-      // Send telemetry for post publication
-      await networkApi.sendTelemetry([{
-        postId,
-        eventType: 'shared',
-        timestamp: new Date().toISOString()
-      }]);
+      // Telemetry functionality removed - not available in current networkApi
 
     } catch (error) {
       console.error('Failed to publish badge post:', error);

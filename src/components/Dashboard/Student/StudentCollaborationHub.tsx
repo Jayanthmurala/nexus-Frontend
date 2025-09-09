@@ -96,7 +96,7 @@ export default function StudentCollaborationHub() {
   // Initial selection from query param
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   useEffect(() => {
-    const pid = searchParams.get("projectId");
+    const pid = searchParams?.get("projectId");
     if (pid) setSelectedProjectId(pid);
   }, [searchParams]);
 

@@ -44,10 +44,6 @@ const COMMON_AREAS = [
 
 export function ExperienceForm({ experience, onSubmit, onCancel, isLoading = false }: ExperienceFormProps) {
   const [formData, setFormData] = useState<ExperiencePayload>({
-    title: experience?.title || "",
-    company: experience?.company || "",
-    startDate: experience?.startDate || "",
-    endDate: experience?.endDate || "",
     area: experience?.area || "",
     level: experience?.level || "Beginner",
     yearsExp: experience?.yearsExp || undefined,

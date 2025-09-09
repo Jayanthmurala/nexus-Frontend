@@ -43,8 +43,8 @@ export default function AwardBadge({ onClose, studentId, studentName, projectId 
   const applicationsByProject = useAppSelector((state) => state.applications.byProjectId as Record<string, any[]>);
   const applicationsLoadingByProject = useAppSelector((state) => state.applications.loadingByProjectId as Record<string, boolean>);
   // Profile functionality removed - using network directory for user data
-  const directoryUsers = useAppSelector((state) => state.network.directory.items || []);
-  const directoryLoading = useAppSelector((state) => state.network.directory.loading);
+  const directoryUsers = useAppSelector((state) => state.network.users || []);
+  const directoryLoading = useAppSelector((state) => state.network.isLoadingUsers);
   const [studentSearch, setStudentSearch] = useState<string>('');
   const [projectFilter, setProjectFilter] = useState<string>(projectId || 'all');
 

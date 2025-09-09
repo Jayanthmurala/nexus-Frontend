@@ -274,7 +274,7 @@ const PostActions: React.FC<PostActionsProps> = ({ post, config, onUpdate }) => 
     try {
       const result = await toggleLike(post.id, post.likedByMe);
       onUpdate({
-        likedByMe: result.liked,
+        likedByMe: 'liked' in result ? result.liked : !result.unliked,
         likeCount: result.likeCount
       });
     } catch (error) {
@@ -286,7 +286,7 @@ const PostActions: React.FC<PostActionsProps> = ({ post, config, onUpdate }) => 
     try {
       const result = await toggleBookmark(post.id, post.bookmarkedByMe);
       onUpdate({
-        bookmarkedByMe: result.bookmarked
+        bookmarkedByMe: 'bookmarked' in result ? result.bookmarked : !result.removed
       });
     } catch (error) {
       console.error('Failed to toggle bookmark:', error);

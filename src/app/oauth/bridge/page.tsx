@@ -21,7 +21,7 @@ function OAuthBridgeInner() {
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const params = useSearchParams();
-  const redirect = params.get("redirect") || "/";
+  const redirect = params?.get("redirect") || "/";
 
   useEffect(() => {
     if (status === "loading") return;

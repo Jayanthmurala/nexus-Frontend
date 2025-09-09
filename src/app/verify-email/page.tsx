@@ -19,7 +19,7 @@ export default function VerifyEmailPage() {
 function VerifyEmailInner() {
   const sp = useSearchParams();
   const router = useRouter();
-  const token = useMemo(() => sp.get("token") || "", [sp]);
+  const token = useMemo(() => sp?.get("token") || "", [sp]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

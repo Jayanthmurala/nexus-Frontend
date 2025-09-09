@@ -252,7 +252,7 @@ export default function CollaborationHub() {
 
   // Initialize selected project from query param if present
   useEffect(() => {
-    const pid = searchParams.get('projectId');
+    const pid = searchParams?.get('projectId');
     if (!pid) return;
     const exists = activeProjects.find((p) => p.id === pid);
     if (exists) setSelectedProject(pid);

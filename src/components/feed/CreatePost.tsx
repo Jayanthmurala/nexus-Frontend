@@ -5,6 +5,7 @@ import { ImageIcon, FileText, Link as LinkIcon, Hash, Users, X, MessageSquare, T
 import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { uploadMedia } from '@/lib/uploadMedia';
 import { networkApi } from '@/lib/networkApi';
+import httpNetwork from '@/lib/httpNetwork';
 import { compressImage, validateImageFile } from '@/lib/imageUtils';
 
 interface CreatePostProps {
@@ -369,15 +370,17 @@ export default function CreatePost({ onClose, onSubmit }: CreatePostProps) {
                           }
                         }
                         
-                        const up = await uploadMedia(fileToUpload, { folder: 'project_images' });
-                        const created = await networkApi.createMedia({
-                          storageKey: up.public_id,
-                          url: up.url,
-                          mimeType: up.mime || file.type || 'image/jpeg',
-                          sizeBytes: up.bytes,
-                          width: up.width,
-                          height: up.height,
+                        // Upload media directly via network service
+                        const formData = new FormData();
+                        formData.append('file', fileToUpload);
+                        
+                        const response = await httpNetwork.post('/v1/media/upload', formData, {
+                          headers: {
+                            'Content-Type': 'multipart/form-data',
+                          },
                         });
+                        
+                        const created = response.data;
                         
                         setAttachments((prev) => [
                           ...prev,
@@ -387,7 +390,7 @@ export default function CreatePost({ onClose, onSubmit }: CreatePostProps) {
                             mimeType: created.mimeType, 
                             width: created.width ?? null, 
                             height: created.height ?? null, 
-                            name: up.original_filename || file.name 
+                            name: file.name 
                           },
                         ]);
                         
@@ -414,18 +417,20 @@ export default function CreatePost({ onClose, onSubmit }: CreatePostProps) {
                   try {
                     const toUpload = Array.from(files).slice(0, Math.max(0, 10 - attachments.length));
                     for (const file of toUpload) {
-                      const up = await uploadMedia(file, { folder: 'project_files' });
-                      const created = await networkApi.createMedia({
-                        storageKey: up.public_id,
-                        url: up.url,
-                        mimeType: up.mime || file.type || 'application/octet-stream',
-                        sizeBytes: up.bytes,
-                        width: up.width,
-                        height: up.height,
+                      // Upload file directly via network service
+                      const formData = new FormData();
+                      formData.append('file', file);
+                      
+                      const response = await httpNetwork.post('/v1/media/upload', formData, {
+                        headers: {
+                          'Content-Type': 'multipart/form-data',
+                        },
                       });
+                      
+                      const created = response.data;
                       setAttachments((prev) => [
                         ...prev,
-                        { id: created.id, url: created.url, mimeType: created.mimeType, width: created.width ?? null, height: created.height ?? null, name: up.original_filename },
+                        { id: created.id, url: created.url, mimeType: created.mimeType, width: created.width ?? null, height: created.height ?? null, name: file.name },
                       ]);
                     }
                   } catch (err) {

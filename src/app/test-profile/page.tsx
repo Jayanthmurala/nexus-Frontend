@@ -112,9 +112,9 @@ export default function TestProfilePage() {
 
       {/* Render appropriate profile component */}
       {(user as any).roles?.includes('FACULTY') ? (
-        <FacultyProfile />
+        <FacultyProfile userId={(user as any).id} />
       ) : (
-        <StudentProfile />
+        <StudentProfile userId={(user as any).id} />
       )}
     </div>
   );

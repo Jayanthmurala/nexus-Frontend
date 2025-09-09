@@ -133,7 +133,7 @@ export default function StudentsFilter() {
 
   // Auto-export when query param ?export=1 is present
   React.useEffect(() => {
-    const exp = searchParams.get("export");
+    const exp = searchParams?.get("export");
     if (exp === "1" && !exportTriggered.current) {
       exportTriggered.current = true;
       // Delay to ensure UI is mounted

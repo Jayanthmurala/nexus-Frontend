@@ -97,7 +97,7 @@ export default function ApplicationReview() {
 
   // Initialize project filter from query params (deep-link support)
   useEffect(() => {
-    const pid = searchParams.get('projectId');
+    const pid = searchParams?.get('projectId');
     if (pid && myProjects.some((p) => p.id === pid)) {
       setProjectFilter(pid);
     }

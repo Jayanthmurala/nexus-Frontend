@@ -48,6 +48,7 @@ export interface SuggestionsResponse {
 
 export interface DirectoryResponse {
   users: User[];
+  total: number;
 }
 
 // Post and Comment Types

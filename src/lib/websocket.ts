@@ -1,5 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSession } from 'next-auth/react';
 
 export interface ProjectUpdateEvent {
   type: 'new-project' | 'project-updated' | 'project-deleted';
@@ -118,7 +119,8 @@ export const websocketManager = new WebSocketManager();
 
 // Hook for using WebSocket in React components
 export function useWebSocket() {
-  const { user, session } = useAuth();
+  const { user } = useAuth();
+  const { data: session } = useSession();
 
   const connect = () => {
     if (!user || !session?.accessToken) {

@@ -19,7 +19,7 @@ export default function ResetPasswordPage() {
 function ResetPasswordInner() {
   const sp = useSearchParams();
   const router = useRouter();
-  const token = useMemo(() => sp.get("token") || "", [sp]);
+  const token = useMemo(() => sp?.get("token") || "", [sp]);
 
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
