@@ -8,7 +8,7 @@ import { useAppDispatch, useAppSelector } from '@/store/hooks';
 // Profile slice removed - profile functionality disabled
 import { useRouter } from 'next/navigation';
 
-export type UserRole = 'student' | 'faculty' | 'dept_admin' | 'placements_admin' | 'head_admin';
+export type UserRole = 'student' | 'faculty' | 'dept_admin' | 'placements_admin' | 'head_admin' | 'HEAD_ADMIN';
 
 export interface SocialLinks {
   linkedin?: string;

@@ -89,6 +89,14 @@ const roleItems: Partial<Record<UserRole, NavItem[]>> = {
     { href: ROUTES.HEAD_ADMIN.events, label: 'Events', icon: <Calendar className="w-4 h-4" /> },
     { href: ROUTES.HEAD_ADMIN.adminManagement, label: 'Admin Management', icon: <Users className="w-4 h-4" /> },
   ],
+  HEAD_ADMIN: [
+    { href: '/head-admin', label: 'Dashboard', icon: <Building className="w-4 h-4" /> },
+    { href: '/head-admin/users', label: 'User Management', icon: <Users className="w-4 h-4" /> },
+    { href: '/head-admin/analytics', label: 'Analytics', icon: <BarChart3 className="w-4 h-4" /> },
+    { href: '/head-admin/projects', label: 'All Projects', icon: <BookOpen className="w-4 h-4" /> },
+    { href: '/head-admin/events', label: 'Events', icon: <Calendar className="w-4 h-4" /> },
+    { href: '/head-admin/admin-management', label: 'System Settings', icon: <Building className="w-4 h-4" /> },
+  ],
 };
 
 export default function Sidebar() {

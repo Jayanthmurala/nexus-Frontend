@@ -235,14 +235,14 @@ export default function HeadAdminDashboard() {
             </button>
 
             <button
-              onClick={() => router.push('/head-admin/admin-management')}
+              onClick={() => router.push('/head-admin/users')}
               className="w-full flex items-center justify-between p-4 bg-green-50 hover:bg-green-100 rounded-lg transition-colors text-left"
             >
               <div className="flex items-center">
                 <Users className="w-5 h-5 text-green-600 mr-3" />
                 <div>
                   <div className="font-medium text-gray-900">User Management</div>
-                  <div className="text-sm text-gray-500">Manage all system users</div>
+                  <div className="text-sm text-gray-500">Manage all college users</div>
                 </div>
               </div>
               <ArrowRight className="w-5 h-5 text-green-600" />

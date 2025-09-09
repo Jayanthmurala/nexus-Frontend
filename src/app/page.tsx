@@ -1,12 +1,13 @@
 'use client';
 
 import React from 'react';
-import AuthPage from '@/components/Auth/AuthPage';
 import { useAuth } from '@/contexts/AuthContext';
 import LinkedInHomePage from '@/components/Home/LinkedInHomePage';
+import { useRouter } from 'next/navigation';
 
 export default function HomePage() {
   const { user, loading } = useAuth();
+  const router = useRouter();
 
   if (loading) {
     return (
@@ -19,7 +20,10 @@ export default function HomePage() {
     );
   }
 
-  if (!user) return <AuthPage />;
+  if (!user) {
+    router.push('/login');
+    return null;
+  }
 
   return <LinkedInHomePage />;
 }

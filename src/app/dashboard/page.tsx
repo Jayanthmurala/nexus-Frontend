@@ -1,11 +1,19 @@
 'use client';
 
-import AuthPage from '@/components/Auth/AuthPage';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import Dashboard from '@/components/Dashboard/Dashboard';
 
 export default function DashboardPage() {
   const { user, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/login');
+    }
+  }, [user, loading, router]);
 
   if (loading) {
     return (
@@ -15,5 +23,5 @@ export default function DashboardPage() {
     );
   }
 
-  return user ? <Dashboard /> : <AuthPage />;
+  return user ? <Dashboard /> : null;
 }
