@@ -9,7 +9,7 @@
 - [ ] Submit post
 - [ ] Verify post appears in feed
 
-### 2. Media Upload Test
+### 2. Media Upload Test using cloudinary
 - [ ] Select files (image, video, document)
 - [ ] Verify upload progress indicator
 - [ ] Verify media appears in post preview
