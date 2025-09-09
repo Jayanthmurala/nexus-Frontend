@@ -221,17 +221,31 @@ export default function HeadAdminDashboard() {
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
           <div className="space-y-3">
             <button
-              onClick={() => router.push('/head-admin/admin-management')}
+              onClick={() => router.push('/head-admin/projects')}
               className="w-full flex items-center justify-between p-4 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors text-left"
             >
               <div className="flex items-center">
-                <Settings className="w-5 h-5 text-blue-600 mr-3" />
+                <BookOpen className="w-5 h-5 text-blue-600 mr-3" />
+                <div>
+                  <div className="font-medium text-gray-900">Projects Management</div>
+                  <div className="text-sm text-gray-500">Moderate and manage all projects</div>
+                </div>
+              </div>
+              <ArrowRight className="w-5 h-5 text-blue-600" />
+            </button>
+
+            <button
+              onClick={() => router.push('/head-admin/admin-management')}
+              className="w-full flex items-center justify-between p-4 bg-green-50 hover:bg-green-100 rounded-lg transition-colors text-left"
+            >
+              <div className="flex items-center">
+                <Settings className="w-5 h-5 text-green-600 mr-3" />
                 <div>
                   <div className="font-medium text-gray-900">System Settings</div>
                   <div className="text-sm text-gray-500">Configure platform settings</div>
                 </div>
               </div>
-              <ArrowRight className="w-5 h-5 text-blue-600" />
+              <ArrowRight className="w-5 h-5 text-green-600" />
             </button>
 
             <button
