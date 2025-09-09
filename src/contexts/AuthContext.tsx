@@ -146,7 +146,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         name: (session.user.name as string) || '',
         email: session.user.email || '',
         role,
-        avatar: undefined,
+        avatar: (session as any).user.avatarUrl || undefined,
         collegeId: (session as any).user.collegeId,
         department: (session as any).user.department,
         year: (session as any).user.year,

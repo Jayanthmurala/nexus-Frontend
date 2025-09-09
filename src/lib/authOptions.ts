@@ -44,6 +44,11 @@ export const authOptions: NextAuthOptions = {
           email: u.email,
           name: u.displayName ?? u.name ?? null,
           roles: u.roles ?? [],
+          collegeId: u.collegeId,
+          department: u.department,
+          year: u.year,
+          collegeMemberId: u.collegeMemberId,
+          avatarUrl: u.avatarUrl,
         };
         // Clear any previously stashed oauth metadata
         (token as any).oauth = undefined;
